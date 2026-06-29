@@ -551,6 +551,73 @@
     header h1 { font-size: 1rem; }
   }
 
+  /* LOGIN */
+  .login-overlay {
+    position: fixed; inset: 0;
+    background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+    z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .login-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 36px 32px;
+    max-width: 380px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    text-align: center;
+  }
+  .login-logo {
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #1a202c;
+    margin-bottom: 4px;
+  }
+  .login-logo span { color: #e53e3e; }
+  .login-subtitle { font-size: 0.8rem; color: #a0aec0; margin-bottom: 28px; }
+  .login-box input {
+    width: 100%; padding: 11px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px; font-size: 0.95rem;
+    margin-bottom: 12px; outline: none;
+    transition: border 0.15s; font-family: var(--font);
+  }
+  .login-box input:focus { border-color: var(--blue); }
+  .login-error { color: var(--red); font-size: 0.82rem; margin-bottom: 10px; display:none; }
+
+  /* USER AVATAR */
+  .user-avatar {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 800;
+    color: #fff; cursor: pointer;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+  .user-avatar-sm {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.55rem; font-weight: 800;
+    color: #fff; margin-left: 4px;
+    flex-shrink: 0;
+  }
+
+  /* LOGIN */
+  .login-overlay { position:fixed;inset:0;background:linear-gradient(135deg,#1a202c,#2d3748);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px; }
+  .login-box { background:#fff;border-radius:16px;padding:36px 32px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);text-align:center; }
+  .login-logo { font-size:1.6rem;font-weight:900;letter-spacing:3px;color:#1a202c;margin-bottom:4px; }
+  .login-logo span { color:#e53e3e; }
+  .login-subtitle { font-size:0.8rem;color:#a0aec0;margin-bottom:28px; }
+  .login-box input { width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.95rem;margin-bottom:12px;outline:none;transition:border .15s;font-family:var(--font); }
+  .login-box input:focus { border-color:var(--blue); }
+  .login-error { color:var(--red);font-size:0.82rem;margin-bottom:10px;display:none; }
+  .user-avatar { width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;color:#fff;cursor:pointer;letter-spacing:.5px;flex-shrink:0; }
+  .user-avatar-sm { width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:0.55rem;font-weight:800;color:#fff;margin-left:4px;flex-shrink:0; }
+
   /* AUTOCOMPLETE */
   .autocomplete-item {
     padding: 9px 14px;
@@ -597,6 +664,23 @@
 </style>
 </head>
 <body>
+
+<!-- LOGIN OVERLAY -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo">ARCHIWUM <span>X</span></div>
+    <div class="login-subtitle">System zarządzania eksponatami</div>
+    <input type="text" id="login-user" placeholder="Login (inicjały)" maxlength="3"
+      style="text-transform:uppercase; letter-spacing:2px; text-align:center; font-weight:700; font-size:1.1rem;"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <input type="password" id="login-pass" placeholder="Hasło"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="login-error" id="login-error">Nieprawidłowy login lub hasło</div>
+    <button class="btn btn-primary" style="width:100%; padding:12px; font-size:1rem;" onclick="doLogin()">
+      Zaloguj się
+    </button>
+  </div>
+</div>
 
 <!-- FIREBASE CONFIG MODAL -->
 <div class="modal-overlay" id="configModal">
@@ -661,10 +745,11 @@
 <!-- HEADER -->
 <header>
   <h1>ARCHIWUM <span>X</span></h1>
-  <div class="header-btns">
+  <div class="header-btns" style="align-items:center">
     <button class="btn btn-ghost btn-sm no-print" onclick="showView('list')">📋 Lista</button>
     <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">📷 Skanuj QR</button>
     <button class="btn btn-primary btn-sm no-print" onclick="showNewForm()">+ Nowy</button>
+    <div id="current-user-avatar" class="user-avatar" title="Wyloguj" onclick="doLogout()" style="background:#38a169; margin-left:4px">KG</div>
   </div>
 </header>
 
@@ -732,6 +817,7 @@
           <p style="font-size:0.78rem; color:var(--gray); margin-bottom:8px; font-weight:600;">🖥️ PRINT SCREEN</p>
           <div style="display:flex; gap:6px; margin-bottom:6px">
             <button type="button" class="btn btn-gray btn-sm" style="flex:1" onclick="document.getElementById('photo-screen').click()">🖥️ Wybierz plik</button>
+            <button type="button" class="btn btn-primary btn-sm" style="flex:1" onclick="activatePaste()">📋 Wklej Ctrl+V</button>
           </div>
           <input type="file" id="photo-screen" accept="image/*" style="display:none" onchange="handlePhoto(this,'screen')">
           <div id="preview-screen">
@@ -1319,7 +1405,13 @@ function recordCardHTML(r) {
     <div class="card-body">
       <div class="card-company">${r.company || '—'}${nr}</div>
       <div class="card-meta">${dims ? dims + ' · ' : ''}${r.type || ''}</div>
-      <span class="status-badge ${badgeClass}">${statusLabel}</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px">
+        <span class="status-badge ${badgeClass}">${statusLabel}</span>
+        \${r.updatedBy ? getUserAvatar(r.updatedBy) : ''}
+      </div>
+        ${r.updatedBy ? getUserAvatar(r.updatedBy) : ''}
+      </div>
     </div>
   </div>`;
 }
@@ -1565,6 +1657,8 @@ async function saveRecord() {
     notes: document.getElementById('f-notes').value,
     fairHistory: fairHistory,
     updatedAt: new Date().toISOString(),
+    updatedBy: currentUser ? currentUser.login : 'NN',
+    updatedBy: currentUser ? currentUser.login : 'NN',
   };
 
   if (!editingId) {
@@ -1720,6 +1814,82 @@ function editCurrentRecord() {
   } else {
     document.getElementById('f-producer').value = r.producer || '';
   }
+
+  // Typ
+  if (r.type) {
+    if (r.type.startsWith('3D blokowe')) {
+      document.getElementById('f-type-cat').value = '3d-blokowe';
+      document.getElementById('subtype-wrap').style.display = 'block';
+      const sub = r.type.includes('—') ? r.type.split('— ')[1] : '';
+      const subMap = {'3d-druk':'3d-druk','taśma':'taśma','profil':'profil','inne':'inne'};
+      document.getElementById('f-type-sub').value = subMap[sub] || '';
+    } else if (r.type === 'PCW + dystanse') { document.getElementById('f-type-cat').value = 'PCW'; }
+    else if (r.type === 'LEDON') { document.getElementById('f-type-cat').value = 'LEDON'; }
+    else if (r.type === 'LED second GEN') { document.getElementById('f-type-cat').value = 'LED2'; }
+    else {
+      document.getElementById('f-type-cat').value = 'inne';
+      document.getElementById('f-type-other').value = r.type;
+      document.getElementById('type-other-wrap').classList.add('show');
+    }
+  }
+
+  // Podświetlenie
+  if (r.lighting) {
+    document.getElementById('f-lighting').value = r.lighting;
+    document.querySelectorAll('input[name="lighting"]').forEach(inp => {
+      if (inp.value === r.lighting) {
+        inp.closest('.check-pill').classList.add('selected');
+      } else if (inp.value === 'inne' && !['Frontlit','HALO','Sidelit'].includes(r.lighting)) {
+        inp.closest('.check-pill').classList.add('selected');
+        document.getElementById('lighting-other-wrap').classList.add('show');
+        document.getElementById('f-lighting-other').value = r.lighting;
+        document.getElementById('f-lighting').value = 'inne';
+      }
+    });
+  }
+
+  // Kolor światła
+  if (r.lightColor) {
+    document.getElementById('f-lightcolor').value = r.lightColor;
+    const stdColors = ['biały-3000K','biały-4500K','biały-6500K','żółty','pomarańczowy','czerwony','różowy','zielony','niebieski'];
+    document.querySelectorAll('input[name="lcolor"]').forEach(inp => {
+      if (inp.value === r.lightColor) inp.closest('.check-pill').classList.add('selected');
+      else if (inp.value === 'inne' && !stdColors.includes(r.lightColor)) {
+        inp.closest('.check-pill').classList.add('selected');
+        document.getElementById('lightcolor-other-wrap').classList.add('show');
+        document.getElementById('f-lightcolor-other').value = r.lightColor;
+      }
+    });
+  }
+
+  // Montaż (checkboxy wielokrotne)
+  if (r.mount && Array.isArray(r.mount)) {
+    selectedMount = [...r.mount];
+    document.getElementById('f-mount').value = JSON.stringify(selectedMount);
+    document.querySelectorAll('input[name="mount"]').forEach(inp => {
+      if (r.mount.includes(inp.value)) {
+        inp.checked = true;
+        inp.closest('.check-pill').classList.add('selected');
+      }
+    });
+  }
+
+  // Napięcie
+  if (r.voltage) {
+    document.getElementById('f-voltage').value = r.voltage;
+    document.querySelectorAll('input[name="voltage"]').forEach(inp => {
+      if (inp.value === r.voltage) inp.closest('.check-pill').classList.add('selected');
+    });
+  }
+
+  // Przewody
+  if (r.cableLength) {
+    document.getElementById('f-cable').value = r.cableLength;
+    document.querySelectorAll('input[name="cable"]').forEach(inp => {
+      if (inp.value === r.cableLength) inp.closest('.check-pill').classList.add('selected');
+    });
+  }
+
   fairHistory = r.fairHistory ? [...r.fairHistory] : [];
   renderFairHistory();
 
@@ -1775,8 +1945,8 @@ function exportQRpdf() {
   showToast('Generowanie PDF z QR...', '');
   getQRcanvas(function(qrCanvas) {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'a6', orientation: 'portrait' });
-    const W = 105, H = 148, m = 6;
+    const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait' });
+    const W = 148, H = 210, m = 8;
     const sc = r.status === 'wróciło' ? [229,62,62] : r.status === 'sprawdzone' ? [214,158,46] : r.status === 'gotowe' ? [56,161,105] : [74,85,104];
     const sl = r.status === 'wróciło' ? 'Wrocilo' : r.status === 'sprawdzone' ? 'Sprawdzone' : r.status === 'gotowe' ? 'Gotowe' : (r.status||'');
 
@@ -1784,26 +1954,23 @@ function exportQRpdf() {
     doc.setDrawColor(26,32,44); doc.setLineWidth(0.5);
     doc.roundedRect(m, m, W-m*2, H-m*2, 3, 3, 'S');
 
-    // Pasek statusu na gorze
+    // Pasek statusu
     doc.setFillColor(...sc);
-    doc.roundedRect(m, m, W-m*2, 11, 3, 3, 'F');
-    doc.rect(m, m+5, W-m*2, 6, 'F');
-    doc.setFontSize(7); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-    doc.text('ARCHIWUM X  |  ' + sl.toUpperCase(), W/2, m+9, {align:'center'});
+    doc.roundedRect(m, m, W-m*2, 12, 3, 3, 'F');
+    doc.rect(m, m+6, W-m*2, 6, 'F');
+    doc.setFontSize(8); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+    doc.text('ARCHIWUM X  |  ' + sl.toUpperCase() + (r.number ? '   #'+r.number : ''), W/2, m+9.5, {align:'center'});
 
-    // Numer + Firma
-    var nr = r.number ? '#' + r.number : '';
-    var topY = m + 20;
-    doc.setFontSize(13); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
-    doc.text(pl(r.company||'-'), W/2, topY, {align:'center', maxWidth: W-m*2-4});
+    // LEWA KOLUMNA: QR + dane
+    var leftW = W/2 - m - 2;
+    var y = m + 20;
 
-    if (nr) {
-      doc.setFontSize(9); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-      doc.text(nr, W/2, topY+6, {align:'center'});
-      topY += 6;
-    }
+    // Firma + numer
+    doc.setFontSize(14); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
+    doc.text(pl(r.company||'-'), m+2, y, {maxWidth: leftW - 2});
+    y += 8;
 
-    // Dane w 2 kolumnach - srodkowa czesc
+    // Dane w 1 kolumnie (lewa strona)
     var details = [
       (r.thickness||r.width||r.height) ? ['Wymiary', (r.thickness||'?')+'x'+(r.width||'?')+'x'+(r.height||'?')+' cm'] : null,
       r.type ? ['Typ', pl(r.type)] : null,
@@ -1815,32 +1982,52 @@ function exportQRpdf() {
       (Array.isArray(r.mount)&&r.mount.length) ? ['Montaz', pl(r.mount.join(', '))] : null,
     ].filter(Boolean);
 
-    var colW2 = (W - m*2 - 3) / 2;
-    var rowH2 = 9;
-    var dataY = topY + 8;
-
+    var rowH2 = 10;
     details.forEach(function(d, i) {
-      var col = i % 2;
-      var row = Math.floor(i/2);
-      var fx = m + col*(colW2+3);
-      var fy = dataY + row*rowH2;
-      if (fy + rowH2 > H - 50) return;
+      var fy = y + i*rowH2;
+      if (fy + rowH2 > H - 75) return;
       doc.setFillColor(247,250,252);
-      doc.roundedRect(fx, fy, colW2, rowH2-1, 1, 1, 'F');
-      doc.setFontSize(5); doc.setTextColor(113,128,150); doc.setFont('helvetica','bold');
-      doc.text(d[0].toUpperCase(), fx+2, fy+3);
-      doc.setFontSize(7); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
-      doc.text(String(d[1]), fx+2, fy+7.5, {maxWidth: colW2-4});
+      doc.roundedRect(m+2, fy, leftW-2, rowH2-1, 1, 1, 'F');
+      doc.setFontSize(5.5); doc.setTextColor(113,128,150); doc.setFont('helvetica','bold');
+      doc.text(d[0].toUpperCase(), m+4, fy+3.5);
+      doc.setFontSize(8); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
+      doc.text(String(d[1]), m+4, fy+8.5, {maxWidth: leftW-6});
     });
 
-    // QR - DUZY NA DOLE
-    var qrSize = 58;
-    var qrY = H - m - qrSize - 8;
-    doc.addImage(qrCanvas.toDataURL('image/png'), 'PNG', (W-qrSize)/2, qrY, qrSize, qrSize);
-
-    // ID pod QR
+    // QR na dole lewej kolumny
+    var qrSize = leftW - 4;
+    var qrY = H - m - qrSize - 10;
+    doc.addImage(qrCanvas.toDataURL('image/png'), 'PNG', m+2, qrY, qrSize, qrSize);
     doc.setFontSize(5.5); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text('ID: '+r.id, W/2, qrY+qrSize+4, {align:'center'});
+    doc.text('ID: '+r.id, m+2+qrSize/2, qrY+qrSize+4, {align:'center'});
+
+    // PRAWA KOLUMNA: zdjęcie
+    var rx = W/2 + 2;
+    var rw = W - m - rx - 2;
+    var ry = m + 20;
+
+    if (r.photoCamera) {
+      try {
+        var imgH = H - m*2 - 20;
+        var tmpImg = new Image();
+        tmpImg.src = r.photoCamera;
+        var iw = tmpImg.naturalWidth||4, ih = tmpImg.naturalHeight||3;
+        var dw = rw, dh = dw*ih/iw;
+        if (dh > imgH) { dh = imgH; dw = dh*iw/ih; }
+        var ix = rx + (rw-dw)/2;
+        doc.addImage(r.photoCamera, 'JPEG', ix, ry, dw, dh);
+        doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+        doc.text('Zdjecie eksponatu', rx+rw/2, ry+dh+5, {align:'center'});
+      } catch(e) {
+        doc.setFontSize(8); doc.setTextColor(160,174,192);
+        doc.text('Brak zdjecia', rx+rw/2, ry+30, {align:'center'});
+      }
+    } else {
+      doc.setFillColor(237,242,247);
+      doc.roundedRect(rx, ry, rw, H-m*2-20, 2, 2, 'F');
+      doc.setFontSize(8); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+      doc.text('Brak zdjecia', rx+rw/2, ry+(H-m*2-20)/2, {align:'center'});
+    }
 
     // Stopka
     doc.setFontSize(5.5); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
@@ -1998,15 +2185,35 @@ function showToast(msg, type) {
 }
 
 // ==================== PASTE SCREENSHOT ====================
+let pasteActive = false;
+
+function activatePaste() {
+  pasteActive = true;
+  const area = document.getElementById('paste-area-screen');
+  if (area) {
+    area.style.borderColor = '#3182ce';
+    area.style.background = '#bee3f8';
+    area.querySelector('div:last-child').textContent = '⌨️ Teraz naciśnij Ctrl+V';
+    area.focus();
+  }
+  showToast('Naciśnij Ctrl+V aby wkleić screen', '');
+  setTimeout(() => { pasteActive = false; }, 10000);
+}
+
 document.addEventListener('paste', function(e) {
   const items = (e.clipboardData || e.originalEvent.clipboardData).items;
   for (const item of items) {
     if (item.type.indexOf('image') !== -1) {
       const file = item.getAsFile();
       if (file) {
-        // Jeśli fokus jest na paste-area lub w formularzu
         handlePhoto({ files: [file] }, 'screen');
         showToast('Wklejono print screen! ✅', 'success');
+        pasteActive = false;
+        const area = document.getElementById('paste-area-screen');
+        if (area) {
+          area.style.borderColor = '#bee3f8';
+          area.style.background = '#ebf8ff';
+        }
         e.preventDefault();
         return;
       }
@@ -2062,8 +2269,53 @@ function stopScanner() {
   }
 }
 
+// ==================== LOGIN SYSTEM ====================
+const USERS = [
+  { login: 'KG', password: 'Ingenium99*', color: '#38a169', label: 'KG' },
+];
+let currentUser = null;
+
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim().toUpperCase();
+  const p = document.getElementById('login-pass').value;
+  const user = USERS.find(x => x.login === u && x.password === p);
+  if (user) {
+    currentUser = user;
+    document.getElementById('loginOverlay').style.display = 'none';
+    const av = document.getElementById('current-user-avatar');
+    av.textContent = user.label;
+    av.style.background = user.color;
+    av.title = user.login + ' — kliknij aby wylogować';
+    showToast('Witaj, ' + user.login + '! ✅', 'success');
+    loadAll();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-pass').value = '';
+  }
+}
+
+function doLogout() {
+  if (!confirm('Wylogować się?')) return;
+  currentUser = null;
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-error').style.display = 'none';
+}
+
+function getUserAvatar(login) {
+  if (!login) return '';
+  const user = USERS.find(u => u.login === login);
+  const color = user ? user.color : '#718096';
+  return `<span class="user-avatar-sm" style="background:${color}" title="${login}">${login}</span>`;
+}
+
 // ==================== STARTUP ====================
 window.onload = () => {
+  // Pokaż ekran logowania
+  document.getElementById('loginOverlay').style.display = 'flex';
+  setTimeout(() => { document.getElementById('login-user').focus(); }, 300);
+
   const FIREBASE_CONFIG = {
     apiKey: "AIzaSyB5qDeta9NuJX0Ixy3NTK1UttjAdatpw5o",
     authDomain: "archiwum-x-3d094.firebaseapp.com",
@@ -2078,7 +2330,7 @@ window.onload = () => {
     storage = firebase.storage();
     document.getElementById('configModal').style.display = 'none';
     showToast('Połączono z Firebase ✅', 'success');
-    loadAll();
+    // loadAll wywoła się po zalogowaniu
   } catch(e) {
     showToast('Błąd połączenia: ' + e.message, 'error');
   }
