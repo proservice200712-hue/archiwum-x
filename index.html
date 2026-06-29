@@ -735,9 +735,13 @@
           </div>
           <input type="file" id="photo-screen" accept="image/*" style="display:none" onchange="handlePhoto(this,'screen')">
           <div id="preview-screen">
-            <div class="photo-upload-area" style="padding:12px; pointer-events:none">
-              <div style="font-size:1.5rem">🖥️</div>
-              <div style="font-size:0.75rem; color:var(--gray)">brak print screena</div>
+            <div class="photo-upload-area" id="paste-area-screen"
+              style="padding:12px; cursor:pointer; border:2px dashed #bee3f8; background:#ebf8ff;"
+              onclick="this.focus()"
+              tabindex="0"
+              title="Kliknij i wklej Ctrl+V">
+              <div style="font-size:1.5rem">📋</div>
+              <div style="font-size:0.75rem; color:var(--blue); font-weight:600;">Kliknij tu i wklej<br>Ctrl+V / ⌘V</div>
             </div>
           </div>
         </div>
@@ -1992,6 +1996,23 @@ function showToast(msg, type) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 3000);
 }
+
+// ==================== PASTE SCREENSHOT ====================
+document.addEventListener('paste', function(e) {
+  const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+  for (const item of items) {
+    if (item.type.indexOf('image') !== -1) {
+      const file = item.getAsFile();
+      if (file) {
+        // Jeśli fokus jest na paste-area lub w formularzu
+        handlePhoto({ files: [file] }, 'screen');
+        showToast('Wklejono print screen! ✅', 'success');
+        e.preventDefault();
+        return;
+      }
+    }
+  }
+});
 
 // ==================== QR SCANNER ====================
 let scannerInstance = null;
