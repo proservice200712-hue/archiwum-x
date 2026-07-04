@@ -2115,44 +2115,75 @@ function exportQRpdf() {
     const photoSrc = r.photoCamera || r.photoScreen || null;
     const preloadAndGenerate = function(imgW, imgH) {
     const { jsPDF } = window.jspdf;
-    // A4 POZIOMY - jeden blok na całą stronę (obrócona wersja poprzedniego układu)
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
-    const W = 297, H = 210, m = 10;
+    // A4 PIONOWY - karta w formacie A5 pionowym, wysrodkowana na kartce (do druku i wyciecia)
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const W = 210, H = 297;
+    const CW = 148, CH = 210; // A5 pionowe
+    const CX = (W - CW) / 2, CY = (H - CH) / 2;
+    const m = 8; // margines wewnetrzny karty
     const _preloadedW = imgW, _preloadedH = imgH;
 
     const sc = r.status === 'wróciło' ? [229,62,62] : r.status === 'sprawdzone' ? [214,158,46] : r.status === 'gotowe' ? [56,161,105] : r.status === 'archiwum' ? [74,85,104] : [74,85,104];
     const sl = r.status === 'wróciło' ? 'WROCILO' : r.status === 'sprawdzone' ? 'SPRAWDZONE' : r.status === 'gotowe' ? 'GOTOWE' : (r.status||'').toUpperCase();
 
-    // Ramka bloku
+    // Ramka karty (A5 wysrodkowane na A4)
     doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
-    doc.roundedRect(m, m, W-m*2, H-m*2, 3, 3, 'S');
+    doc.roundedRect(CX, CY, CW, CH, 3, 3, 'S');
 
-    // Pasek statusu na górze
+    // Pasek statusu na gorze - nazwa duza wysrodkowana, status maly
+    const headerH = 16;
     doc.setFillColor(...sc);
-    doc.roundedRect(m, m, W-m*2, 14, 3, 3, 'F');
-    doc.rect(m, m+7, W-m*2, 7, 'F');
-    doc.setFontSize(13); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-    const slText = sl;
-    const slW = doc.getTextWidth(slText);
-    doc.text(slText, m+5, m+9.5);
-    doc.setFontSize(13); doc.setFont('helvetica','normal');
-    doc.text('  ' + pl(r.company||'-') + (r.number ? '  #'+r.number : ''), m+5+slW, m+9.5, {maxWidth: W-m*2-slW-10});
+    doc.roundedRect(CX, CY, CW, headerH, 3, 3, 'F');
+    doc.rect(CX, CY + headerH/2, CW, headerH/2, 'F');
 
-    const inner = m;
-    const bottom = H - m;
+    doc.setFontSize(7.5); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+    doc.text(sl, CX + m, CY + 6);
 
-    // === LEWA KOLUMNA: firma + dane ===
-    const lx = m + 6;
-    const lw = 105;
-    let ly = m + 24;
+    doc.setFontSize(15); doc.setFont('helvetica','bold');
+    const firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
+    doc.text(firmaNr, CX + CW/2, CY + 12.5, {align:'center', maxWidth: CW - m*2});
 
-    doc.setFontSize(16); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
-    doc.text(pl(r.company||'-'), lx, ly, {maxWidth: lw});
-    ly += 7;
+    const innerX = CX + m;
+    const innerW = CW - m*2;
+    let cy = CY + headerH + 7;
+    const bottom = CY + CH - m;
+
+    // === ZDJECIE ===
+    const photoBoxH = 58;
+    const blockPhoto = r.photoCamera || r.photoScreen || null;
+    const blockPhotoLabel = r.photoCamera ? 'Zdjecie' : (r.photoScreen ? 'Print screen' : null);
+    if (blockPhoto) {
+      try {
+        var dims = (_preloadedW && _preloadedH) ? {w:_preloadedW, h:_preloadedH} : {w:4, h:3};
+        var dw = innerW, dh = dw * dims.h / dims.w;
+        if (dh > photoBoxH) { dh = photoBoxH; dw = dh * dims.w / dims.h; }
+        var ix = innerX + (innerW - dw) / 2;
+        var iy = cy + (photoBoxH - dh) / 2;
+        doc.addImage(blockPhoto, 'JPEG', ix, iy, dw, dh);
+      } catch(e) {
+        doc.setFillColor(240,240,240);
+        doc.roundedRect(innerX, cy, innerW, photoBoxH, 2, 2, 'F');
+        doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
+        doc.text('Brak zdjecia', innerX+innerW/2, cy+photoBoxH/2, {align:'center'});
+      }
+    } else {
+      doc.setFillColor(240,240,240);
+      doc.roundedRect(innerX, cy, innerW, photoBoxH, 2, 2, 'F');
+      doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
+      doc.text('Brak zdjecia', innerX+innerW/2, cy+photoBoxH/2, {align:'center'});
+    }
+    if (blockPhotoLabel) {
+      doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+      doc.text(blockPhotoLabel, innerX+innerW/2, cy+photoBoxH+3, {align:'center'});
+    }
+    cy += photoBoxH + 6;
+
+    // === LINIA ===
     doc.setDrawColor(220,220,220); doc.setLineWidth(0.2);
-    doc.line(lx, ly, lx+lw, ly);
-    ly += 7;
+    doc.line(innerX, cy, innerX+innerW, cy);
+    cy += 6;
 
+    // === DANE - siatka 2 kolumny ===
     const details = [
       (r.thickness||r.width||r.height) ? ['Wymiary', (r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' cm'] : null,
       r.type ? ['Typ', pl(r.type)] : null,
@@ -2164,66 +2195,34 @@ function exportQRpdf() {
       (Array.isArray(r.mount)&&r.mount.length) ? ['Montaz', pl(r.mount.join(', '))] : null,
     ].filter(Boolean);
 
-    details.forEach(function(d) {
-      if (ly + 14 > bottom - 6) return;
-      doc.setFontSize(7); doc.setTextColor(113,128,150); doc.setFont('helvetica','bold');
-      doc.text(d[0].toUpperCase(), lx, ly);
-      doc.setFontSize(11); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
-      doc.text(String(d[1]), lx, ly+6, {maxWidth: lw});
-      ly += 15;
+    const colGap = 4;
+    const colW = (innerW - colGap) / 2;
+    const rowH = 9.5;
+    const qrReserve = 46 + 6 + 5 + 6; // qr + odstepy + etykieta i data na dole karty
+    details.forEach(function(d, i) {
+      const col = i % 2, row = Math.floor(i/2);
+      const fx = innerX + col*(colW+colGap), fy = cy + row*rowH;
+      if (fy + rowH > bottom - qrReserve) return;
+      doc.setFontSize(6); doc.setTextColor(113,128,150); doc.setFont('helvetica','bold');
+      doc.text(d[0].toUpperCase(), fx, fy);
+      doc.setFontSize(8.5); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
+      doc.text(String(d[1]), fx, fy+5, {maxWidth: colW});
     });
 
-    // === PRAWA KOLUMNA: zdjęcie (góra) + QR (dół) ===
-    const rx = m + lw + 20;
-    const rw = W - rx - m - 6;
-
-    const qrSize = 72;
-    const imgY = m + 20;
-    const imgBoxH = bottom - imgY - qrSize - 16;
-
-    // Zdjęcie proporcjonalne, wyśrodkowane
-    const blockPhoto = r.photoCamera || r.photoScreen || null;
-    const blockPhotoLabel = r.photoCamera ? 'Zdjecie' : (r.photoScreen ? 'Print screen' : null);
-    if (blockPhoto) {
-      try {
-        var dims = (_preloadedW && _preloadedH) ? {w:_preloadedW, h:_preloadedH} : {w:4, h:3};
-        var dw = rw, dh = dw * dims.h / dims.w;
-        if (dh > imgBoxH) { dh = imgBoxH; dw = dh * dims.w / dims.h; }
-        var ix = rx + (rw - dw) / 2;
-        var iy = imgY + (imgBoxH - dh) / 2;
-        doc.addImage(blockPhoto, 'JPEG', ix, iy, dw, dh);
-        doc.setFontSize(6.5); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-        if (blockPhotoLabel) doc.text(blockPhotoLabel, rx+rw/2, imgY+imgBoxH+4, {align:'center'});
-      } catch(e) {
-        doc.setFillColor(240,240,240);
-        doc.roundedRect(rx, imgY, rw, imgBoxH, 2, 2, 'F');
-        doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
-        doc.text('Brak zdjecia', rx+rw/2, imgY+imgBoxH/2, {align:'center'});
-      }
-    } else {
-      doc.setFillColor(240,240,240);
-      doc.roundedRect(rx, imgY, rw, imgBoxH, 2, 2, 'F');
-      doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
-      doc.text('Brak zdjecia', rx+rw/2, imgY+imgBoxH/2, {align:'center'});
-    }
-
-    // QR - pod zdjęciem, wyśrodkowany
-    const qrX = rx + (rw - qrSize) / 2;
-    const qrY = imgY + imgBoxH + 8;
+    // === QR na dole karty, wysrodkowany ===
+    const qrSize = 46;
+    const qrX = innerX + (innerW - qrSize) / 2;
+    const qrY = bottom - qrSize - 11;
     doc.addImage(qrCanvas.toDataURL('image/png'), 'PNG', qrX, qrY, qrSize, qrSize);
     doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text('ID: '+r.id, rx+rw/2, qrY+qrSize+4, {align:'center'});
-
-    // Linia pionowa między kolumnami
-    doc.setDrawColor(220,220,220); doc.setLineWidth(0.2);
-    doc.line(rx-10, m+20, rx-10, bottom-6);
+    doc.text('ID: '+r.id, innerX+innerW/2, qrY+qrSize+4.5, {align:'center'});
 
     // Data
-    doc.setFontSize(6.5); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text(new Date().toLocaleDateString('pl-PL'), W-m-4, bottom-3, {align:'right'});
+    doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+    doc.text(new Date().toLocaleDateString('pl-PL'), CX+CW-m, bottom-1, {align:'right'});
 
     doc.save('QR_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:'')+'.pdf');
-    showToast('PDF z QR wygenerowany! \u2705', 'success');
+    showToast('PDF z QR wygenerowany! ✅', 'success');
     }; // end preloadAndGenerate
 
     if (photoSrc) {
@@ -2236,6 +2235,7 @@ function exportQRpdf() {
     }
   });
 }
+
 function exportCardPdf() {
   var r = currentRecord;
   if (!r) return;
