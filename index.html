@@ -136,28 +136,33 @@
     transition: transform 0.15s, box-shadow 0.15s;
     display: flex;
     flex-direction: column;
-    border: 1px solid #e2e8f0;
+    border: 4.5px solid #e2e8f0;
   }
   .record-card:hover { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.15); }
 
-  /* Nagłówek kafelka - kolorowy pasek z nazwą */
+  /* Delikatna obwódka kafelka w kolorze statusu */
+  .record-card.card-czerwony { border-color: rgba(229,62,62,0.45); }
+  .record-card.card-żółty { border-color: rgba(214,158,46,0.5); }
+  .record-card.card-zielony { border-color: rgba(56,161,105,0.45); }
+  .record-card.card-archiwum { border-color: rgba(74,85,104,0.45); }
+
+  /* Nagłówek kafelka - nazwa w kolorze statusu, białe tło */
   .card-header {
-    padding: 10px 12px;
+    padding: 10px 12px 6px;
     font-size: 1rem;
     font-weight: 800;
-    color: #fff;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     letter-spacing: 0.2px;
-    border-radius: 11px 11px 0 0;
     text-align: center;
+    background: #fff;
   }
-  .card-header.status-czerwony { background: var(--red); }
-  .card-header.status-żółty { background: var(--yellow); }
-  .card-header.status-zielony { background: var(--green); }
-  .card-header.status-archiwum { background: #4a5568; }
-  .card-header.status-brak { background: var(--gray); }
+  .card-header.status-czerwony { color: var(--red); }
+  .card-header.status-żółty { color: var(--yellow); }
+  .card-header.status-zielony { color: var(--green); }
+  .card-header.status-archiwum { color: #4a5568; }
+  .card-header.status-brak { color: var(--gray); }
 
   /* Zdjęcie */
   .card-img {
@@ -1487,7 +1492,8 @@ function recordCardHTML(r) {
     r.type ? `<span>${r.type}</span>` : null,
     r.producer ? `<span style="color:#718096">${r.producer}</span>` : null,
   ].filter(Boolean).join('<br>');
-  return `<div class="record-card" onclick="showDetail('${r.id}')">
+  const cardBorder = r.status === 'wróciło' ? 'card-czerwony' : r.status === 'sprawdzone' ? 'card-żółty' : r.status === 'gotowe' ? 'card-zielony' : r.status === 'archiwum' ? 'card-archiwum' : '';
+  return `<div class="record-card ${cardBorder}" onclick="showDetail('${r.id}')">
     <div class="card-header ${statusClass}">${r.company || '—'}${nr}</div>
     ${imgHTML}
     <div class="card-body">
