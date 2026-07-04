@@ -2623,55 +2623,6 @@ function getUserAvatar(login) {
   return `<span class="user-avatar-sm" style="background:${color}" title="${login}">${login}</span>`;
 }
 
-// ==================== GITHUB DEPLOY ====================
-const GH_TOKEN = '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';
-const GH_OWNER = 'proservice200712-hue';
-const GH_REPO  = 'archiwum-x';
-const GH_FILE  = 'index.html';
-const GH_BRANCH = 'main';
-
-async function deployToGithub() {
-  const btn = document.getElementById('github-btn');
-  if (btn) { btn.textContent = '⏳ Wysyłam...'; btn.disabled = true; }
-
-  try {
-    const infoRes = await fetch(
-      `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}?ref=${GH_BRANCH}`,
-      { headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github+json' } }
-    );
-    const info = await infoRes.json();
-    if (!info.sha) throw new Error('Błąd SHA: ' + (info.message || JSON.stringify(info)));
-
-    const htmlText = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-    const encoded = btoa(unescape(encodeURIComponent(htmlText)));
-
-    const updateRes = await fetch(
-      `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`,
-      {
-        method: 'PUT',
-        headers: { Authorization: 'token ' + GH_TOKEN, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: 'Archiwum X - ' + new Date().toLocaleString('pl-PL'),
-          content: encoded,
-          sha: info.sha,
-          branch: GH_BRANCH
-        })
-      }
-    );
-    const result = await updateRes.json();
-    if (result.content) {
-      showToast('Wgrano na GitHub! ✅ Zmiany aktywne za ~2 min.', 'success');
-      if (btn) { btn.textContent = '✅ GitHub'; setTimeout(() => { btn.textContent = '⬆️ GitHub'; btn.disabled = false; }, 5000); }
-    } else {
-      throw new Error(result.message || JSON.stringify(result));
-    }
-  } catch(e) {
-    showToast('Błąd GitHub: ' + e.message, 'error');
-    if (btn) { btn.textContent = '⬆️ GitHub'; btn.disabled = false; }
-  }
-}
-
-
 // ==================== STARTUP ====================
 window.onload = async () => {
   // Pokaż ekran logowania od razu
