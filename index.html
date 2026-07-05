@@ -825,7 +825,7 @@
       <select class="filter-select" onchange="applyFilters()" id="filter-status">
         <option value="">Wszystkie statusy</option>
         <option value="wróciło">🔴 Wróciło</option>
-        <option value="sprawdzone">🟡 Sprawdzone</option>
+        <option value="sprawdzone">🟡 Oznaczone</option>
         <option value="gotowe">🟢 Gotowe</option>
         <option value="archiwum">🗄️ Archiwum</option>
       </select>
@@ -933,7 +933,7 @@
       <div class="section-title">Status</div>
       <div class="status-group">
         <button type="button" class="status-btn" onclick="setStatus('wróciło',this)" id="status-btn-1">🔴 Wróciło</button>
-        <button type="button" class="status-btn" onclick="setStatus('sprawdzone',this)" id="status-btn-2">🟡 Sprawdzone</button>
+        <button type="button" class="status-btn" onclick="setStatus('sprawdzone',this)" id="status-btn-2">🟡 Oznaczone</button>
         <button type="button" class="status-btn" onclick="setStatus('gotowe',this)" id="status-btn-3">🟢 Gotowe</button>
         <button type="button" class="status-btn" onclick="setStatus('archiwum',this)" id="status-btn-4">🗄️ Archiwum</button>
       </div>
@@ -1479,7 +1479,7 @@ function renderList(filteredRecords) {
 function recordCardHTML(r) {
   const statusClass = r.status === 'wróciło' ? 'status-czerwony' : r.status === 'sprawdzone' ? 'status-żółty' : r.status === 'gotowe' ? 'status-zielony' : r.status === 'archiwum' ? 'status-archiwum' : 'status-brak';
   const badgeClass = r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'archiwum' ? 'badge-archiwum' : '';
-  const statusLabel = r.status === 'wróciło' ? '🔴 Wróciło' : r.status === 'sprawdzone' ? '🟡 Sprawdzone' : r.status === 'gotowe' ? '🟢 Gotowe' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
+  const statusLabel = r.status === 'wróciło' ? '🔴 Wróciło' : r.status === 'sprawdzone' ? '🟡 Oznaczone' : r.status === 'gotowe' ? '🟢 Gotowe' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
   const cardPhoto = r.photoCamera || r.photoScreen || null;
   const imgHTML = cardPhoto
     ? `<div class="card-img"><img src="${cardPhoto}" alt="zdjęcie"></div>`
@@ -1883,7 +1883,7 @@ function showDetail(id) {
   document.getElementById('d-company').textContent = (r.number ? '#' + r.number + '  ' : '') + (r.company || '—');
 
   const badgeEl = document.getElementById('d-status-badge');
-  badgeEl.textContent = r.status === 'wróciło' ? '🔴 Wróciło' : r.status === 'sprawdzone' ? '🟡 Sprawdzone' : r.status === 'gotowe' ? '🟢 Gotowe' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
+  badgeEl.textContent = r.status === 'wróciło' ? '🔴 Wróciło' : r.status === 'sprawdzone' ? '🟡 Oznaczone' : r.status === 'gotowe' ? '🟢 Gotowe' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
   badgeEl.className = 'status-badge ' + (r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'archiwum' ? 'badge-archiwum' : '');
 
   document.getElementById('d-dims').textContent = (r.thickness || r.width || r.height) ? `${r.thickness||'?'} × ${r.width||'?'} × ${r.height||'?'} cm` : '—';
@@ -2124,7 +2124,7 @@ function exportQRpdf() {
     const _preloadedW = imgW, _preloadedH = imgH;
 
     const sc = r.status === 'wróciło' ? [229,62,62] : r.status === 'sprawdzone' ? [214,158,46] : r.status === 'gotowe' ? [56,161,105] : r.status === 'archiwum' ? [74,85,104] : [74,85,104];
-    const sl = r.status === 'wróciło' ? 'WROCILO' : r.status === 'sprawdzone' ? 'SPRAWDZONE' : r.status === 'gotowe' ? 'GOTOWE' : (r.status||'').toUpperCase();
+    const sl = r.status === 'wróciło' ? 'WROCILO' : r.status === 'sprawdzone' ? 'OZNACZONE' : r.status === 'gotowe' ? 'GOTOWE' : (r.status||'').toUpperCase();
 
     // Ramka karty (A5 wysrodkowane na A4)
     doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
@@ -2245,7 +2245,7 @@ function exportCardPdf() {
     var doc = new jsPDFobj({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     var W = 210, H = 297, m = 12;
     var sc = r.status === 'wróciło' ? [229,62,62] : r.status === 'sprawdzone' ? [214,158,46] : r.status === 'gotowe' ? [56,161,105] : r.status === 'archiwum' ? [74,85,104] : [74,85,104];
-    var sl = r.status === 'wróciło' ? 'WROCILO' : r.status === 'sprawdzone' ? 'SPRAWDZONE' : r.status === 'gotowe' ? 'GOTOWE' : (r.status||'').toUpperCase();
+    var sl = r.status === 'wróciło' ? 'WROCILO' : r.status === 'sprawdzone' ? 'OZNACZONE' : r.status === 'gotowe' ? 'GOTOWE' : (r.status||'').toUpperCase();
 
     // === NAGŁÓWEK: firma duża wyśrodkowana, status mały po prawej ===
     doc.setFillColor(...sc);
