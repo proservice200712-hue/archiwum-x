@@ -960,7 +960,7 @@
         <input type="number" id="f-height" placeholder="Wysokość" step="1" min="0">
         <span class="dims-sep">×</span>
         <input type="number" id="f-thickness" placeholder="Grubość" step="1" min="0">
-        <select id="f-dim-unit" title="Jednostka wymiarów"
+        <select id="f-dim-unit" title="Jednostka wymiarów" data-prev="cm" onchange="onDimUnitChange(this)"
           style="flex:0 0 auto;padding:8px 10px;border:1.5px solid var(--lightgray);border-radius:var(--radius);font-size:0.85rem;background:#fff;cursor:pointer">
           <option value="cm" selected>cm</option>
           <option value="mm">mm</option>
@@ -1147,7 +1147,7 @@
       </div>
       <div class="detail-body">
         <div class="detail-grid">
-          <div class="detail-field"><div class="lbl">Wymiary (G×S×W)</div><div class="val" id="d-dims">—</div></div>
+          <div class="detail-field"><div class="lbl">Wymiary (S×W×G)</div><div class="val" id="d-dims">—</div></div>
           <div class="detail-field"><div class="lbl">Typ</div><div class="val" id="d-type">—</div></div>
           <div class="detail-field"><div class="lbl">Podświetlenie</div><div class="val" id="d-lighting">—</div></div>
           <div class="detail-field"><div class="lbl">Kolor światła</div><div class="val" id="d-lightcolor">—</div></div>
@@ -1646,7 +1646,7 @@ function resetForm() {
   ['f-status','f-lighting','f-lightcolor','f-voltage','f-cable'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   document.getElementById('f-mount').value = '[]';
   const unitSel = document.getElementById('f-dim-unit');
-  if (unitSel) unitSel.value = 'cm';
+  if (unitSel) { unitSel.value = 'cm'; unitSel.dataset.prev = 'cm'; }
   const fairSel = document.getElementById('f-fair-select');
   if (fairSel) { fairSel.value = ''; populateFairSelect(); }
   document.getElementById('fair-other-wrap').classList.remove('show');
@@ -1661,6 +1661,22 @@ function resetForm() {
   document.getElementById('preview-screen').innerHTML = '';
   selectedMount = [];
   renderFairHistory();
+}
+
+function onDimUnitChange(sel) {
+  // Przelicz istniejące wartości wymiarów przy zmianie jednostki (cm <-> mm)
+  const prev = sel.dataset.prev || 'cm';
+  const next = sel.value;
+  if (prev === next) return;
+  const factor = (prev === 'cm' && next === 'mm') ? 10 : (prev === 'mm' && next === 'cm') ? 0.1 : 1;
+  ['f-width','f-height','f-thickness'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.value !== '' && !isNaN(parseFloat(el.value))) {
+      el.value = Math.round(parseFloat(el.value) * factor * 100) / 100;
+    }
+  });
+  sel.dataset.prev = next;
+  showToast('Przeliczono wymiary na ' + next, 'success');
 }
 
 function setStatus(val, btn) {
@@ -1946,7 +1962,7 @@ function showDetail(id) {
   badgeEl.textContent = r.status === 'wróciło' ? '🔴 Wróciło' : r.status === 'sprawdzone' ? '🟡 Opisane' : r.status === 'gotowe' ? '🟢 Gotowe' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
   badgeEl.className = 'status-badge ' + (r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'archiwum' ? 'badge-archiwum' : '');
 
-  document.getElementById('d-dims').textContent = (r.thickness || r.width || r.height) ? `${r.thickness||'?'} × ${r.width||'?'} × ${r.height||'?'} ${r.dimUnit||'cm'}` : '—';
+  document.getElementById('d-dims').textContent = (r.thickness || r.width || r.height) ? `${r.width||'?'} × ${r.height||'?'} × ${r.thickness||'?'} ${r.dimUnit||'cm'}` : '—';
   document.getElementById('d-type').textContent = r.type || '—';
   document.getElementById('d-lighting').textContent = r.lighting || '—';
   document.getElementById('d-lightcolor').textContent = r.lightColor || '—';
@@ -2019,7 +2035,9 @@ function editCurrentRecord() {
   document.getElementById('f-thickness').value = r.thickness || '';
   document.getElementById('f-width').value = r.width || '';
   document.getElementById('f-height').value = r.height || '';
-  document.getElementById('f-dim-unit').value = r.dimUnit || 'cm';
+  const editUnitSel = document.getElementById('f-dim-unit');
+  editUnitSel.value = r.dimUnit || 'cm';
+  editUnitSel.dataset.prev = r.dimUnit || 'cm';
   document.getElementById('f-notes').value = r.notes || '';
 
   if (r.status) {
