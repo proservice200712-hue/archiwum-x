@@ -1645,7 +1645,7 @@ function resetForm() {
   ['f-status','f-lighting','f-lightcolor','f-voltage','f-cable'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   document.getElementById('f-mount').value = '[]';
   const unitSel = document.getElementById('f-dim-unit');
-  if (unitSel) { unitSel.value = 'cm'; unitSel.dataset.prev = 'cm'; }
+  if (unitSel) { const du = defaultDimUnit(); unitSel.value = du; unitSel.dataset.prev = du; }
   const fairSel = document.getElementById('f-fair-select');
   if (fairSel) { fairSel.value = ''; populateFairSelect(); }
   document.getElementById('fair-other-wrap').classList.remove('show');
@@ -1660,6 +1660,11 @@ function resetForm() {
   document.getElementById('preview-screen').innerHTML = '';
   selectedMount = [];
   renderFairHistory();
+}
+
+function defaultDimUnit() {
+  // DM pracuje w milimetrach, pozostali użytkownicy w centymetrach
+  return (currentUser && currentUser.login === 'DM') ? 'mm' : 'cm';
 }
 
 function onDimUnitChange(sel) {
