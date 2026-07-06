@@ -808,6 +808,18 @@
   </div>
 </div>
 
+<!-- ACTIVITY LOG MODAL -->
+<div class="modal-overlay" id="activityModal" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <h2>🔔 Historia zmian</h2>
+    <p style="font-size:0.82rem;color:var(--gray);margin-bottom:12px">Wszystkie zmiany wykonane przez użytkowników.</p>
+    <div id="activity-list" style="max-height:55vh;overflow-y:auto"></div>
+    <div style="margin-top:16px;text-align:right">
+      <button class="btn btn-gray" onclick="closeActivityLog()">Zamknij</button>
+    </div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <header>
   <h1>ARCHIWUM <span>X</span></h1>
@@ -815,6 +827,8 @@
     <button class="btn btn-ghost btn-sm no-print" onclick="showView('list')">📋 Lista</button>
     <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">📷 Skanuj QR</button>
     <button class="btn btn-primary btn-sm no-print" onclick="showNewForm()">+ Nowy</button>
+    <button class="btn btn-ghost btn-sm no-print" onclick="showActivityLog()" title="Historia zmian" style="position:relative">🔔<span id="bell-badge"
+      style="display:none;position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;border-radius:10px;font-size:0.6rem;font-weight:700;padding:1px 5px;min-width:16px;text-align:center">0</span></button>
     <button class="btn btn-ghost btn-sm no-print" id="admin-btn" onclick="showUserManager()" style="display:none" title="Zarządzaj użytkownikami">👥 Użytkownicy</button>
     <div id="current-user-avatar" class="user-avatar" title="Wyloguj" onclick="doLogout()" style="background:#718096;margin-left:2px">?</div>
   </div>
@@ -845,6 +859,12 @@
       <select class="filter-select" onchange="applyFilters()" id="filter-producer" style="flex:1;min-width:140px">
         <option value="">Wszyscy producenci</option>
       </select>
+      <select class="filter-select" onchange="applyFilters()" id="filter-sort" style="flex:1;min-width:140px" title="Sortowanie">
+        <option value="">Sortuj: najnowsze</option>
+        <option value="edited">📅 Data edycji</option>
+        <option value="number-asc">🔢 Numer rosnąco</option>
+        <option value="number-desc">🔢 Numer malejąco</option>
+      </select>
       <button class="btn btn-gray btn-sm" onclick="clearFilters()" title="Wyczyść filtry">✕ Wyczyść</button>
     </div>
   </div>
@@ -862,6 +882,18 @@
         <h2 id="formTitle">Nowy eksponat</h2>
       </div>
       <button class="btn btn-primary btn-sm" onclick="saveRecord()">💾 Zapisz</button>
+    </div>
+
+    <!-- STATUS -->
+    <div class="form-section">
+      <div class="section-title">Status</div>
+      <div class="status-group">
+        <button type="button" class="status-btn" onclick="setStatus('wróciło',this)" id="status-btn-1">🔴 Wróciło</button>
+        <button type="button" class="status-btn" onclick="setStatus('sprawdzone',this)" id="status-btn-2">🟡 Opisane</button>
+        <button type="button" class="status-btn" onclick="setStatus('gotowe',this)" id="status-btn-3">🟢 Gotowe</button>
+        <button type="button" class="status-btn" onclick="setStatus('archiwum',this)" id="status-btn-4">🗄️ Archiwum</button>
+      </div>
+      <input type="hidden" id="f-status" value="">
     </div>
 
     <!-- FIRMA -->
@@ -919,7 +951,7 @@
       </div>
     </div>
 
-    <!-- WYMIARY I STATUS -->
+    <!-- WYMIARY -->
     <div class="form-section">
       <div class="section-title">Wymiary (S × W × G)</div>
       <div class="dims-row">
@@ -928,19 +960,12 @@
         <input type="number" id="f-height" placeholder="Wysokość" step="1" min="0">
         <span class="dims-sep">×</span>
         <input type="number" id="f-thickness" placeholder="Grubość" step="1" min="0">
-        <span style="font-size:0.8rem; color:var(--gray)">cm</span>
+        <select id="f-dim-unit" title="Jednostka wymiarów"
+          style="flex:0 0 auto;padding:8px 10px;border:1.5px solid var(--lightgray);border-radius:var(--radius);font-size:0.85rem;background:#fff;cursor:pointer">
+          <option value="cm" selected>cm</option>
+          <option value="mm">mm</option>
+        </select>
       </div>
-    </div>
-
-    <div class="form-section">
-      <div class="section-title">Status</div>
-      <div class="status-group">
-        <button type="button" class="status-btn" onclick="setStatus('wróciło',this)" id="status-btn-1">🔴 Wróciło</button>
-        <button type="button" class="status-btn" onclick="setStatus('sprawdzone',this)" id="status-btn-2">🟡 Opisane</button>
-        <button type="button" class="status-btn" onclick="setStatus('gotowe',this)" id="status-btn-3">🟢 Gotowe</button>
-        <button type="button" class="status-btn" onclick="setStatus('archiwum',this)" id="status-btn-4">🗄️ Archiwum</button>
-      </div>
-      <input type="hidden" id="f-status" value="">
     </div>
 
     <!-- TYP -->
@@ -1110,6 +1135,7 @@
     <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap">
       <button class="btn btn-gray btn-sm no-print" onclick="showView('list')">← Lista</button>
       <button class="btn btn-primary btn-sm no-print" onclick="editCurrentRecord()">✏️ Edytuj</button>
+      <button class="btn btn-gray btn-sm no-print" onclick="copyCurrentRecord()">📄 Kopiuj</button>
       <button class="btn btn-danger btn-sm no-print" onclick="deleteCurrentRecord()">🗑️ Usuń</button>
     </div>
 
@@ -1145,8 +1171,14 @@
         <div style="flex:1; min-width:180px">
           <p style="font-size:0.82rem; color:var(--gray); margin-bottom:12px">Zeskanuj kod QR telefonem aby otworzyć kartę eksponatu.</p>
           <div style="display:flex; flex-direction:column; gap:8px">
-            <button class="btn btn-gray" onclick="exportQRpdf()">📄 Eksportuj QR do PDF</button>
-            <button class="btn btn-gray" onclick="exportCardPdf()">📋 Eksportuj kartę do PDF</button>
+            <div style="display:flex; gap:8px">
+              <button class="btn btn-gray" style="flex:1" onclick="exportQRpdf()">📄 Eksportuj QR do PDF</button>
+              <button class="btn btn-gray" onclick="exportQRpdf('print')" title="Drukuj QR">🖨️</button>
+            </div>
+            <div style="display:flex; gap:8px">
+              <button class="btn btn-gray" style="flex:1" onclick="exportCardPdf()">📋 Eksportuj kartę do PDF</button>
+              <button class="btn btn-gray" onclick="exportCardPdf('print')" title="Drukuj kartę">🖨️</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1243,6 +1275,7 @@ function useDemoMode() {
   renderList();
   populateCompanySelect();
   populateFairSelect();
+  loadActivity();
 }
 
 function loadAll() {
@@ -1250,6 +1283,7 @@ function loadAll() {
   loadCompanies();
   loadFairNames();
   loadRecords();
+  loadActivity();
 }
 
 // ==================== COMPANIES ====================
@@ -1468,9 +1502,23 @@ function loadRecords() {
   });
 }
 
+function sortList(arr) {
+  const sortEl = document.getElementById('filter-sort');
+  const mode = sortEl ? sortEl.value : '';
+  const list = [...arr];
+  if (mode === 'edited') {
+    list.sort((a,b) => String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+  } else if (mode === 'number-asc') {
+    list.sort((a,b) => (parseInt(a.number)||0) - (parseInt(b.number)||0));
+  } else if (mode === 'number-desc') {
+    list.sort((a,b) => (parseInt(b.number)||0) - (parseInt(a.number)||0));
+  }
+  return list;
+}
+
 function renderList(filteredRecords) {
   if (!filteredRecords) populateFilterDropdowns();
-  const list = filteredRecords !== undefined ? filteredRecords : records.filter(r => r.status !== 'archiwum');
+  const list = sortList(filteredRecords !== undefined ? filteredRecords : records.filter(r => r.status !== 'archiwum'));
   const container = document.getElementById('records-container');
   if (list.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>Brak eksponatów. Kliknij <strong>+ Nowy</strong> aby dodać.</p></div>`;
@@ -1487,7 +1535,7 @@ function recordCardHTML(r) {
   const imgHTML = cardPhoto
     ? `<div class="card-img"><img src="${cardPhoto}" alt="zdjęcie"></div>`
     : `<div class="card-img">📦</div>`;
-  const dims = (r.thickness || r.width || r.height) ? `${r.width||'?'}×${r.height||'?'}×${r.thickness||'?'} cm` : '';
+  const dims = (r.thickness || r.width || r.height) ? `${r.width||'?'}×${r.height||'?'}×${r.thickness||'?'} ${r.dimUnit||'cm'}` : '';
   const nr = r.number ? ` #${r.number}` : '';
   // Dane pod zdjęciem: wymiary, typ, producent
   const metaLines = [
@@ -1547,6 +1595,7 @@ function clearFilters() {
   document.getElementById('filter-type').value = '';
   document.getElementById('filter-lightcolor').value = '';
   document.getElementById('filter-producer').value = '';
+  document.getElementById('filter-sort').value = '';
   currentFilter = '';
   renderList();
 }
@@ -1596,6 +1645,8 @@ function resetForm() {
   ['f-thickness','f-width','f-height'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   ['f-status','f-lighting','f-lightcolor','f-voltage','f-cable'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   document.getElementById('f-mount').value = '[]';
+  const unitSel = document.getElementById('f-dim-unit');
+  if (unitSel) unitSel.value = 'cm';
   const fairSel = document.getElementById('f-fair-select');
   if (fairSel) { fairSel.value = ''; populateFairSelect(); }
   document.getElementById('fair-other-wrap').classList.remove('show');
@@ -1796,6 +1847,7 @@ async function saveRecord() {
     thickness: document.getElementById('f-thickness').value || null,
     width: document.getElementById('f-width').value || null,
     height: document.getElementById('f-height').value || null,
+    dimUnit: document.getElementById('f-dim-unit').value || 'cm',
     status: document.getElementById('f-status').value,
     type: typeStr,
     lighting,
@@ -1813,6 +1865,9 @@ async function saveRecord() {
     updatedBy: currentUser ? currentUser.login : 'NN',
   };
 
+  const isEdit = !!editingId;
+  const existingRec = isEdit ? records.find(r => r.id === editingId) : null;
+
   if (!editingId) {
     record.createdAt = new Date().toISOString();
     record.number = (records.length + 1);
@@ -1829,6 +1884,7 @@ async function saveRecord() {
       records.unshift({ id: savedId, ...record });
     }
     localStorage.setItem('archivum_records', JSON.stringify(records));
+    logActivity(isEdit ? 'edytował(a)' : 'utworzył(a)', { company: record.company, number: record.number || (existingRec && existingRec.number), id: savedId });
     showToast('Zapisano! ✅', 'success');
     renderList();
     showDetail(savedId);
@@ -1844,6 +1900,7 @@ async function saveRecord() {
       const docRef = await db.collection('records').add(record);
       savedId = docRef.id;
     }
+    logActivity(isEdit ? 'edytował(a)' : 'utworzył(a)', { company: record.company, number: record.number || (existingRec && existingRec.number), id: savedId });
     showToast('Zapisano! ✅', 'success');
     // Otwórz szczegóły zapisanego eksponatu (poczekaj aż snapshot zaktualizuje listę)
     openDetailWhenReady(savedId);
@@ -1889,7 +1946,7 @@ function showDetail(id) {
   badgeEl.textContent = r.status === 'wróciło' ? '🔴 Wróciło' : r.status === 'sprawdzone' ? '🟡 Opisane' : r.status === 'gotowe' ? '🟢 Gotowe' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
   badgeEl.className = 'status-badge ' + (r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'archiwum' ? 'badge-archiwum' : '');
 
-  document.getElementById('d-dims').textContent = (r.thickness || r.width || r.height) ? `${r.thickness||'?'} × ${r.width||'?'} × ${r.height||'?'} cm` : '—';
+  document.getElementById('d-dims').textContent = (r.thickness || r.width || r.height) ? `${r.thickness||'?'} × ${r.width||'?'} × ${r.height||'?'} ${r.dimUnit||'cm'}` : '—';
   document.getElementById('d-type').textContent = r.type || '—';
   document.getElementById('d-lighting').textContent = r.lighting || '—';
   document.getElementById('d-lightcolor').textContent = r.lightColor || '—';
@@ -1962,6 +2019,7 @@ function editCurrentRecord() {
   document.getElementById('f-thickness').value = r.thickness || '';
   document.getElementById('f-width').value = r.width || '';
   document.getElementById('f-height').value = r.height || '';
+  document.getElementById('f-dim-unit').value = r.dimUnit || 'cm';
   document.getElementById('f-notes').value = r.notes || '';
 
   if (r.status) {
@@ -2067,12 +2125,22 @@ function editCurrentRecord() {
   showView('form');
 }
 
+function copyCurrentRecord() {
+  if (!currentRecord) return;
+  // Wypełnij formularz danymi bieżącego rekordu, ale zapisz jako NOWY eksponat
+  editCurrentRecord();
+  editingId = null;
+  document.getElementById('formTitle').textContent = 'Nowy eksponat (kopia)';
+  showToast('Utworzono kopię — zapisz, aby dodać nowy eksponat', '');
+}
+
 async function deleteCurrentRecord() {
   if (!currentRecord) return;
   if (!confirm('Usunąć ten eksponat?')) return;
   if (demoMode) {
     records = records.filter(r => r.id !== currentRecord.id);
     localStorage.setItem('archivum_records', JSON.stringify(records));
+    logActivity('usunął(ęła)', currentRecord);
     showToast('Usunięto!', 'success');
     showView('list');
     renderList();
@@ -2080,6 +2148,7 @@ async function deleteCurrentRecord() {
   }
   try {
     await db.collection('records').doc(currentRecord.id).delete();
+    logActivity('usunął(ęła)', currentRecord);
     showToast('Usunięto!', 'success');
     showView('list');
   } catch(e) {
@@ -2110,10 +2179,10 @@ function getQRcanvas(callback) {
   check();
 }
 
-function exportQRpdf() {
+function exportQRpdf(mode) {
   const r = currentRecord;
   if (!r) return;
-  showToast('Generowanie PDF z QR...', '');
+  showToast(mode === 'print' ? 'Przygotowanie do druku...' : 'Generowanie PDF z QR...', '');
   getQRcanvas(function(qrCanvas) {
     const photoSrc = r.photoCamera || r.photoScreen || null;
     const preloadAndGenerate = function(imgW, imgH) {
@@ -2188,7 +2257,7 @@ function exportQRpdf() {
 
     // === DANE - siatka 2 kolumny ===
     const details = [
-      (r.thickness||r.width||r.height) ? ['Wymiary', (r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' cm'] : null,
+      (r.thickness||r.width||r.height) ? ['Wymiary', (r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm')] : null,
       r.type ? ['Typ', pl(r.type)] : null,
       r.lighting ? ['Swiatlo', pl(r.lighting)] : null,
       r.lightColor ? ['Kolor', pl(r.lightColor)] : null,
@@ -2224,8 +2293,14 @@ function exportQRpdf() {
     doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
     doc.text(new Date().toLocaleDateString('pl-PL'), CX+CW-m, bottom-1, {align:'right'});
 
-    doc.save('QR_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:'')+'.pdf');
-    showToast('PDF z QR wygenerowany! ✅', 'success');
+    if (mode === 'print') {
+      doc.autoPrint();
+      window.open(doc.output('bloburl'), '_blank');
+      showToast('Otwieram okno druku... 🖨️', 'success');
+    } else {
+      doc.save('QR_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:'')+'.pdf');
+      showToast('PDF z QR wygenerowany! ✅', 'success');
+    }
     }; // end preloadAndGenerate
 
     if (photoSrc) {
@@ -2239,10 +2314,10 @@ function exportQRpdf() {
   });
 }
 
-function exportCardPdf() {
+function exportCardPdf(mode) {
   var r = currentRecord;
   if (!r) return;
-  showToast('Generowanie PDF...', '');
+  showToast(mode === 'print' ? 'Przygotowanie do druku...' : 'Generowanie PDF...', '');
   getQRcanvas(function(qrCanvas) {
     var jsPDFobj = window.jspdf.jsPDF;
     var doc = new jsPDFobj({ unit: 'mm', format: 'a4', orientation: 'portrait' });
@@ -2308,7 +2383,7 @@ function exportCardPdf() {
 
     // === TABELA DANYCH: 2 kolumny ===
     var fields = [
-      ['Wymiary SxWxG', (r.thickness||r.width||r.height)?(r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' cm':'-'],
+      ['Wymiary SxWxG', (r.thickness||r.width||r.height)?(r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm'):'-'],
       ['Typ', pl(r.type)||'-'],
       ['Podswietlenie', pl(r.lighting)||'-'],
       ['Kolor swiatla', pl(r.lightColor)||'-'],
@@ -2376,14 +2451,96 @@ function exportCardPdf() {
     doc.text('ID: '+r.id, m, H-5);
     doc.text('Archiwum X  |  '+new Date().toLocaleDateString('pl-PL'), W-m, H-5, {align:'right'});
 
-    doc.save('Karta_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:'')+'.pdf');
-    showToast('PDF karty wygenerowany! ✅', 'success');
+    if (mode === 'print') {
+      doc.autoPrint();
+      window.open(doc.output('bloburl'), '_blank');
+      showToast('Otwieram okno druku... 🖨️', 'success');
+    } else {
+      doc.save('Karta_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:'')+'.pdf');
+      showToast('PDF karty wygenerowany! ✅', 'success');
+    }
   });
 }
 
 // ==================== PRINT (fallback) ====================
-function printQR() { exportQRpdf(); }
-function printDetail() { exportCardPdf(); }
+function printQR() { exportQRpdf('print'); }
+function printDetail() { exportCardPdf('print'); }
+
+// ==================== ACTIVITY LOG (dzwoneczek) ====================
+let activityLog = [];
+
+function logActivity(action, info) {
+  const entry = {
+    user: currentUser ? currentUser.login : 'NN',
+    action,
+    company: (info && info.company) || '',
+    number: (info && info.number) || null,
+    recordId: (info && info.id) || null,
+    at: new Date().toISOString()
+  };
+  if (demoMode) {
+    activityLog.unshift(entry);
+    activityLog = activityLog.slice(0, 200);
+    localStorage.setItem('archivum_activity', JSON.stringify(activityLog));
+    updateBellBadge();
+    return;
+  }
+  db.collection('activity').add(entry).catch(e => console.log('Activity log error:', e));
+}
+
+function loadActivity() {
+  if (demoMode) {
+    activityLog = JSON.parse(localStorage.getItem('archivum_activity') || '[]');
+    updateBellBadge();
+    return;
+  }
+  db.collection('activity').orderBy('at','desc').limit(100).onSnapshot(snap => {
+    activityLog = snap.docs.map(d => d.data());
+    updateBellBadge();
+  }, err => console.log('Activity load error:', err));
+}
+
+function updateBellBadge() {
+  const badge = document.getElementById('bell-badge');
+  if (!badge) return;
+  const lastSeen = localStorage.getItem('archivum_bell_seen') || '';
+  const unread = activityLog.filter(a => a.at && a.at > lastSeen).length;
+  badge.style.display = unread > 0 ? 'inline-block' : 'none';
+  badge.textContent = unread > 99 ? '99+' : unread;
+}
+
+function showActivityLog() {
+  renderActivityLog();
+  document.getElementById('activityModal').style.display = 'flex';
+  localStorage.setItem('archivum_bell_seen', new Date().toISOString());
+  updateBellBadge();
+}
+
+function closeActivityLog() {
+  document.getElementById('activityModal').style.display = 'none';
+}
+
+function renderActivityLog() {
+  const el = document.getElementById('activity-list');
+  if (!el) return;
+  if (activityLog.length === 0) {
+    el.innerHTML = '<em style="color:var(--gray);font-size:0.85rem">Brak zapisanych zmian</em>';
+    return;
+  }
+  el.innerHTML = activityLog.map(a => {
+    const when = a.at ? new Date(a.at).toLocaleString('pl-PL', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+    const target = (a.company || '—') + (a.number ? ' #' + a.number : '');
+    const isClickable = a.recordId && records.some(r => r.id === a.recordId);
+    const clickAttr = isClickable ? `onclick="closeActivityLog();showDetail('${a.recordId}')"` : '';
+    return `<div ${clickAttr} class="activity-item" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #edf2f7${isClickable?';cursor:pointer':''}">
+      ${getUserAvatar(a.user)}
+      <div style="flex:1">
+        <div style="font-size:0.85rem"><strong>${a.user}</strong> ${a.action} <strong>${target}</strong></div>
+        <div style="font-size:0.72rem;color:#a0aec0">${when}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // ==================== VIEWS ====================
 function showView(name) {
