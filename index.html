@@ -721,6 +721,14 @@
     <button class="btn btn-primary" style="width:100%; padding:12px; font-size:1rem;" onclick="doLogin()">
       Zaloguj się
     </button>
+    <div style="margin:14px 0 10px; display:flex; align-items:center; gap:10px">
+      <div style="flex:1; height:1px; background:#e2e8f0"></div>
+      <span style="font-size:0.72rem; color:#a0aec0; font-weight:600">LUB</span>
+      <div style="flex:1; height:1px; background:#e2e8f0"></div>
+    </div>
+    <button class="btn btn-gray" style="width:100%; padding:11px;" onclick="startGuestScan()">
+      📷 Skanuj QR — podgląd bez logowania
+    </button>
   </div>
 </div>
 
@@ -823,12 +831,13 @@
 <header>
   <h1>ARCHIWUM <span>X</span></h1>
   <div class="header-btns" style="align-items:center;gap:6px">
-    <button class="btn btn-ghost btn-sm no-print" onclick="showView('list')">📋 Lista</button>
+    <button class="btn btn-ghost btn-sm no-print" id="btn-list" onclick="showView('list')">📋 Lista</button>
     <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">📷 Skanuj QR</button>
-    <button class="btn btn-primary btn-sm no-print" onclick="showNewForm()">+ Nowy</button>
-    <button class="btn btn-ghost btn-sm no-print" onclick="showActivityLog()" title="Historia zmian" style="position:relative">🔔<span id="bell-badge"
+    <button class="btn btn-primary btn-sm no-print" id="btn-new" onclick="showNewForm()">+ Nowy</button>
+    <button class="btn btn-ghost btn-sm no-print" id="btn-bell" onclick="showActivityLog()" title="Historia zmian" style="position:relative">🔔<span id="bell-badge"
       style="display:none;position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;border-radius:10px;font-size:0.6rem;font-weight:700;padding:1px 5px;min-width:16px;text-align:center">0</span></button>
     <button class="btn btn-ghost btn-sm no-print" id="admin-btn" onclick="showUserManager()" style="display:none" title="Zarządzaj użytkownikami">👥 Użytkownicy</button>
+    <button class="btn btn-primary btn-sm no-print" id="guest-login-btn" onclick="exitGuestMode()" style="display:none">🔑 Zaloguj się</button>
     <div id="current-user-avatar" class="user-avatar" title="Wyloguj" onclick="doLogout()" style="background:#718096;margin-left:2px">?</div>
   </div>
 </header>
@@ -1131,11 +1140,15 @@
 <!-- DETAIL VIEW -->
 <div class="view" id="view-detail">
   <div class="detail-container">
-    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap">
+    <div id="detail-actions-bar" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap">
       <button class="btn btn-gray btn-sm no-print" onclick="showView('list')">← Lista</button>
       <button class="btn btn-primary btn-sm no-print" onclick="editCurrentRecord()">✏️ Edytuj</button>
       <button class="btn btn-gray btn-sm no-print" onclick="copyCurrentRecord()">📄 Kopiuj</button>
       <button class="btn btn-danger btn-sm no-print" onclick="deleteCurrentRecord()">🗑️ Usuń</button>
+    </div>
+    <div id="detail-guest-bar" style="display:none; gap:10px; margin-bottom:16px; flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm no-print" onclick="showScanner()">📷 Skanuj kolejny QR</button>
+      <button class="btn btn-gray btn-sm no-print" onclick="exitGuestMode()">🔑 Zaloguj się</button>
     </div>
 
     <div class="detail-top">
@@ -1947,6 +1960,10 @@ function showDetail(id) {
   if (!r) return;
   currentRecord = r;
 
+  // Tryb gościa: tylko podgląd, bez edycji/kopiowania/usuwania
+  document.getElementById('detail-actions-bar').style.display = guestMode ? 'none' : 'flex';
+  document.getElementById('detail-guest-bar').style.display = guestMode ? 'flex' : 'none';
+
   // photos
   const photosEl = document.getElementById('detail-photos');
   const photos = [r.photoCamera, r.photoScreen].filter(Boolean);
@@ -2619,8 +2636,10 @@ document.addEventListener('paste', function(e) {
 
 // ==================== QR SCANNER ====================
 let scannerInstance = null;
+let scanBusy = false;
 
 function showScanner() {
+  scanBusy = false;
   document.getElementById('scannerModal').style.display = 'flex';
   document.getElementById('scan-result').textContent = 'Uruchamianie kamery...';
   document.getElementById('qr-reader').innerHTML = '';
@@ -2632,15 +2651,41 @@ function showScanner() {
       { fps: 10, qrbox: { width: 220, height: 220 } },
       (decodedText) => {
         // QR zawiera ID eksponatu
+        if (scanBusy) return;
+        scanBusy = true;
         const id = decodedText.trim();
         document.getElementById('scan-result').textContent = 'Znaleziono: ' + id;
-        stopScanner();
-        // Szukaj w rekordach
+        // Szukaj w załadowanych rekordach
         const found = records.find(r => r.id === id);
         if (found) {
+          currentRecord = found;
+          stopScanner();
           showDetail(found.id);
           showToast('Otwarto eksponat! ✅', 'success');
+        } else if (!demoMode && db) {
+          // Tryb gościa / rekord spoza listy: pobierz pojedynczy dokument z bazy
+          document.getElementById('scan-result').textContent = 'Pobieranie eksponatu...';
+          db.collection('records').doc(id).get().then(doc => {
+            if (doc.exists) {
+              const rec = { id: doc.id, ...doc.data() };
+              if (!records.some(r => r.id === rec.id)) records.push(rec);
+              currentRecord = rec;
+              stopScanner();
+              showDetail(rec.id);
+              showToast('Otwarto eksponat! ✅', 'success');
+            } else {
+              scanBusy = false;
+              document.getElementById('scan-result').textContent = 'Nie znaleziono eksponatu o ID: ' + id + ' — spróbuj ponownie';
+              showToast('Nie znaleziono eksponatu o ID: ' + id, 'error');
+            }
+          }).catch(e => {
+            scanBusy = false;
+            document.getElementById('scan-result').textContent = 'Błąd odczytu — spróbuj ponownie';
+            showToast('Błąd odczytu: ' + e.message, 'error');
+          });
         } else {
+          scanBusy = false;
+          document.getElementById('scan-result').textContent = 'Nie znaleziono eksponatu o ID: ' + id + ' — spróbuj ponownie';
           showToast('Nie znaleziono eksponatu o ID: ' + id, 'error');
         }
       },
@@ -2652,16 +2697,21 @@ function showScanner() {
 }
 
 function stopScanner() {
+  const finish = () => {
+    document.getElementById('scannerModal').style.display = 'none';
+    // Gość zamknął skaner bez zeskanowania — wróć do ekranu logowania
+    if (guestMode && !currentRecord) exitGuestMode();
+  };
   if (scannerInstance) {
     scannerInstance.stop().then(() => {
       scannerInstance = null;
-      document.getElementById('scannerModal').style.display = 'none';
+      finish();
     }).catch(() => {
       scannerInstance = null;
-      document.getElementById('scannerModal').style.display = 'none';
+      finish();
     });
   } else {
-    document.getElementById('scannerModal').style.display = 'none';
+    finish();
   }
 }
 
@@ -2713,12 +2763,47 @@ const USER_COLORS = ['#38a169','#3182ce','#e53e3e','#d69e2e','#805ad5','#dd6b20'
 let currentUser = null;
 let currentFilter = '';
 
+// ==================== TRYB GOŚCIA (podgląd bez logowania) ====================
+let guestMode = false;
+
+function setGuestUI(on) {
+  // W trybie gościa ukryj wszystko poza skanowaniem
+  ['btn-list','btn-new','btn-bell'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = on ? 'none' : '';
+  });
+  document.getElementById('current-user-avatar').style.display = on ? 'none' : '';
+  document.getElementById('guest-login-btn').style.display = on ? 'inline-flex' : 'none';
+  if (on) document.getElementById('admin-btn').style.display = 'none';
+}
+
+function startGuestScan() {
+  guestMode = true;
+  currentRecord = null;
+  document.getElementById('loginOverlay').style.display = 'none';
+  setGuestUI(true);
+  document.getElementById('records-container').innerHTML =
+    '<div class="empty-state"><div class="icon">📷</div><p>Zeskanuj kod QR, aby zobaczyć kartę eksponatu.</p></div>';
+  showScanner();
+}
+
+function exitGuestMode() {
+  guestMode = false;
+  currentRecord = null;
+  setGuestUI(false);
+  showView('list');
+  document.getElementById('loginOverlay').style.display = 'flex';
+  setTimeout(() => { document.getElementById('login-user').focus(); }, 200);
+}
+
 function doLogin() {
   const u = document.getElementById('login-user').value.trim().toUpperCase();
   const p = document.getElementById('login-pass').value;
   const user = USERS.find(x => x.login === u && x.password === p);
   if (user) {
     currentUser = user;
+    guestMode = false;
+    setGuestUI(false);
     document.getElementById('loginOverlay').style.display = 'none';
     const av = document.getElementById('current-user-avatar');
     av.textContent = user.label;
