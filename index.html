@@ -1024,16 +1024,16 @@
     <div class="form-section">
       <div class="section-title">Kolor światła</div>
       <div class="check-group">
-        <label class="check-pill" onclick="selectLightColor(this,'biały-3000K')"><input type="radio" name="lcolor" value="biały-3000K">⚪ Biały 3000K</label>
-        <label class="check-pill" onclick="selectLightColor(this,'biały-4500K')"><input type="radio" name="lcolor" value="biały-4500K">⚪ Biały 4500K</label>
-        <label class="check-pill" onclick="selectLightColor(this,'biały-6500K')"><input type="radio" name="lcolor" value="biały-6500K">⚪ Biały 6500K</label>
-        <label class="check-pill" onclick="selectLightColor(this,'żółty')"><input type="radio" name="lcolor" value="żółty">🟡 Żółty</label>
-        <label class="check-pill" onclick="selectLightColor(this,'pomarańczowy')"><input type="radio" name="lcolor" value="pomarańczowy">🟠 Pomarańczowy</label>
-        <label class="check-pill" onclick="selectLightColor(this,'czerwony')"><input type="radio" name="lcolor" value="czerwony">🔴 Czerwony</label>
-        <label class="check-pill" onclick="selectLightColor(this,'różowy')"><input type="radio" name="lcolor" value="różowy">🩷 Różowy</label>
-        <label class="check-pill" onclick="selectLightColor(this,'zielony')"><input type="radio" name="lcolor" value="zielony">🟢 Zielony</label>
-        <label class="check-pill" onclick="selectLightColor(this,'niebieski')"><input type="radio" name="lcolor" value="niebieski">🔵 Niebieski</label>
-        <label class="check-pill" onclick="selectLightColor(this,'inne')"><input type="radio" name="lcolor" value="inne">Inne</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="biały-3000K">⚪ Biały 3000K</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="biały-4500K">⚪ Biały 4500K</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="biały-6500K">⚪ Biały 6500K</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="żółty">🟡 Żółty</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="pomarańczowy">🟠 Pomarańczowy</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="czerwony">🔴 Czerwony</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="różowy">🩷 Różowy</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="zielony">🟢 Zielony</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="niebieski">🔵 Niebieski</label>
+        <label class="check-pill" onclick="toggleLightColor(this)"><input type="checkbox" name="lcolor" value="inne">Inne</label>
       </div>
       <input type="hidden" id="f-lightcolor" value="">
       <div class="form-group inline-other" id="lightcolor-other-wrap">
@@ -1256,6 +1256,12 @@ let fairHistory = [];
 let photoData = { camera: null, screen: null };
 let selectedStatus = '';
 let selectedMount = [];
+let selectedLightColors = [];
+
+function lightColorStr(r) {
+  // Stare rekordy: pojedynczy tekst, nowe: tablica kolorów
+  return Array.isArray(r.lightColor) ? r.lightColor.join(', ') : (r.lightColor || '');
+}
 
 // ==================== FIREBASE INIT ====================
 function initFirebase() {
@@ -1593,7 +1599,10 @@ function applyFilters() {
     if (q && !(r.company||'').toLowerCase().includes(q)) return false;
     if (status && r.status !== status) return false;
     if (type && !(r.type||'').includes(type)) return false;
-    if (lightcolor && r.lightColor !== lightcolor) return false;
+    if (lightcolor) {
+      const lcArr = Array.isArray(r.lightColor) ? r.lightColor : (r.lightColor ? [r.lightColor] : []);
+      if (!lcArr.includes(lightcolor)) return false;
+    }
     if (producer && r.producer !== producer) return false;
     return true;
   });
@@ -1622,7 +1631,7 @@ function populateFilterDropdowns() {
       types.map(t => `<option value="${t}" ${cur===t?'selected':''}>${t}</option>`).join('');
   }
   // Kolor światła
-  const colors = [...new Set(records.map(r => r.lightColor).filter(Boolean))].sort();
+  const colors = [...new Set(records.flatMap(r => Array.isArray(r.lightColor) ? r.lightColor : (r.lightColor ? [r.lightColor] : [])))].sort();
   const colorEl = document.getElementById('filter-lightcolor');
   if (colorEl) {
     const cur = colorEl.value;
@@ -1646,6 +1655,7 @@ function showNewForm() {
   photoData = { camera: null, screen: null };
   selectedStatus = '';
   selectedMount = [];
+  selectedLightColors = [];
   document.getElementById('formTitle').textContent = 'Nowy eksponat';
   resetForm();
   showView('form');
@@ -1672,6 +1682,7 @@ function resetForm() {
   document.getElementById('preview-camera').innerHTML = '';
   document.getElementById('preview-screen').innerHTML = '';
   selectedMount = [];
+  selectedLightColors = [];
   renderFairHistory();
 }
 
@@ -1732,12 +1743,14 @@ function toggleMultiPill(label, hiddenId) {
   document.getElementById(hiddenId).value = JSON.stringify(selectedMount);
 }
 
-function selectLightColor(label, value) {
-  document.querySelectorAll('input[name="lcolor"]').forEach(i => i.closest('.check-pill').classList.remove('selected'));
-  label.classList.add('selected');
-  document.getElementById('f-lightcolor').value = value;
+function toggleLightColor(label) {
+  const input = label.querySelector('input');
+  label.classList.toggle('selected', input.checked);
+  if (input.checked) { if (!selectedLightColors.includes(input.value)) selectedLightColors.push(input.value); }
+  else { selectedLightColors = selectedLightColors.filter(v => v !== input.value); }
+  document.getElementById('f-lightcolor').value = JSON.stringify(selectedLightColors);
   const wrap = document.getElementById('lightcolor-other-wrap');
-  wrap.classList.toggle('show', value === 'inne');
+  wrap.classList.toggle('show', selectedLightColors.includes('inne'));
 }
 
 function updateSubtype() {
@@ -1870,8 +1883,14 @@ async function saveRecord() {
   let lighting = document.getElementById('f-lighting').value;
   if (lighting === 'inne') lighting = document.getElementById('f-lighting-other').value;
 
-  let lightcolor = document.getElementById('f-lightcolor').value;
-  if (lightcolor === 'inne') lightcolor = document.getElementById('f-lightcolor-other').value;
+  // Kolory światła: wielokrotny wybór; "inne" zastąp wpisanym tekstem
+  let lightColors = [...selectedLightColors];
+  const lcOtherIdx = lightColors.indexOf('inne');
+  if (lcOtherIdx >= 0) {
+    lightColors.splice(lcOtherIdx, 1);
+    const lcOther = document.getElementById('f-lightcolor-other').value.trim();
+    if (lcOther) lightColors.push(...lcOther.split(',').map(s => s.trim()).filter(Boolean));
+  }
 
   const record = {
     company,
@@ -1884,7 +1903,7 @@ async function saveRecord() {
     status: document.getElementById('f-status').value,
     type: typeStr,
     lighting,
-    lightColor: lightcolor,
+    lightColor: lightColors,
     mount: JSON.parse(document.getElementById('f-mount').value || '[]'),
     producer: document.getElementById('f-producer').value === 'inne'
       ? (document.getElementById('f-producer-other').value || 'inne')
@@ -1986,7 +2005,7 @@ function showDetail(id) {
   document.getElementById('d-dims').textContent = (r.thickness || r.width || r.height) ? `${r.width||'?'} × ${r.height||'?'} × ${r.thickness||'?'} ${r.dimUnit||'cm'}` : '—';
   document.getElementById('d-type').textContent = r.type || '—';
   document.getElementById('d-lighting').textContent = r.lighting || '—';
-  document.getElementById('d-lightcolor').textContent = r.lightColor || '—';
+  document.getElementById('d-lightcolor').textContent = lightColorStr(r) || '—';
   document.getElementById('d-mount').textContent = Array.isArray(r.mount) ? r.mount.join(', ') || '—' : r.mount || '—';
   document.getElementById('d-producer').textContent = r.producer || '—';
   document.getElementById('d-voltage').textContent = r.voltage || '—';
@@ -2117,18 +2136,28 @@ function editCurrentRecord() {
     });
   }
 
-  // Kolor światła
-  if (r.lightColor) {
-    document.getElementById('f-lightcolor').value = r.lightColor;
+  // Kolor światła (wielokrotny wybór; stare rekordy = pojedynczy tekst)
+  if (r.lightColor && (Array.isArray(r.lightColor) ? r.lightColor.length : true)) {
+    const lcArr = Array.isArray(r.lightColor) ? [...r.lightColor] : [r.lightColor];
     const stdColors = ['biały-3000K','biały-4500K','biały-6500K','żółty','pomarańczowy','czerwony','różowy','zielony','niebieski'];
+    selectedLightColors = [];
+    const customColors = [];
+    lcArr.forEach(c => {
+      if (stdColors.includes(c)) selectedLightColors.push(c);
+      else customColors.push(c);
+    });
+    if (customColors.length) {
+      selectedLightColors.push('inne');
+      document.getElementById('lightcolor-other-wrap').classList.add('show');
+      document.getElementById('f-lightcolor-other').value = customColors.join(', ');
+    }
     document.querySelectorAll('input[name="lcolor"]').forEach(inp => {
-      if (inp.value === r.lightColor) inp.closest('.check-pill').classList.add('selected');
-      else if (inp.value === 'inne' && !stdColors.includes(r.lightColor)) {
+      if (selectedLightColors.includes(inp.value)) {
+        inp.checked = true;
         inp.closest('.check-pill').classList.add('selected');
-        document.getElementById('lightcolor-other-wrap').classList.add('show');
-        document.getElementById('f-lightcolor-other').value = r.lightColor;
       }
     });
+    document.getElementById('f-lightcolor').value = JSON.stringify(selectedLightColors);
   }
 
   // Montaż (checkboxy wielokrotne)
@@ -2300,7 +2329,7 @@ function exportQRpdf(mode) {
       (r.thickness||r.width||r.height) ? ['Wymiary', (r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm')] : null,
       r.type ? ['Typ', pl(r.type)] : null,
       r.lighting ? ['Swiatlo', pl(r.lighting)] : null,
-      r.lightColor ? ['Kolor', pl(r.lightColor)] : null,
+      lightColorStr(r) ? ['Kolor', pl(lightColorStr(r))] : null,
       r.producer ? ['Producent', pl(r.producer)] : null,
       r.voltage ? ['Napiecie', r.voltage] : null,
       r.cableLength ? ['Przewody', r.cableLength] : null,
@@ -2426,7 +2455,7 @@ function exportCardPdf(mode) {
       ['Wymiary SxWxG', (r.thickness||r.width||r.height)?(r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm'):'-'],
       ['Typ', pl(r.type)||'-'],
       ['Podswietlenie', pl(r.lighting)||'-'],
-      ['Kolor swiatla', pl(r.lightColor)||'-'],
+      ['Kolor swiatla', pl(lightColorStr(r))||'-'],
       ['Montaz', pl(Array.isArray(r.mount)?r.mount.join(', '):r.mount)||'-'],
       ['Producent', pl(r.producer)||'-'],
       ['Napiecie', r.voltage||'-'],
