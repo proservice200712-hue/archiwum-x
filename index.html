@@ -1999,7 +1999,8 @@ function showDetail(id) {
   // QR
   document.getElementById('qrcode').innerHTML = '';
   window._qrCanvas = null;
-  const qrText = r.id; // prosty tekst = ID eksponatu
+  // URL z ID eksponatu — natywny aparat telefonu otworzy kartę bezpośrednio (tryb gościa)
+  const qrText = location.origin + location.pathname + '?id=' + encodeURIComponent(r.id);
   try {
     const qrObj = new QRCode(document.getElementById('qrcode'), {
       text: qrText, width: 200, height: 200,
@@ -2638,6 +2639,19 @@ document.addEventListener('paste', function(e) {
 let scannerInstance = null;
 let scanBusy = false;
 
+function extractRecordId(text) {
+  // Nowy format QR: URL z ?id=..., stary format: samo ID
+  text = (text || '').trim();
+  try {
+    if (/^https?:\/\//i.test(text)) {
+      const u = new URL(text);
+      const p = u.searchParams.get('id');
+      if (p) return p.trim();
+    }
+  } catch(e) {}
+  return text;
+}
+
 function showScanner() {
   scanBusy = false;
   document.getElementById('scannerModal').style.display = 'flex';
@@ -2653,7 +2667,7 @@ function showScanner() {
         // QR zawiera ID eksponatu
         if (scanBusy) return;
         scanBusy = true;
-        const id = decodedText.trim();
+        const id = extractRecordId(decodedText);
         document.getElementById('scan-result').textContent = 'Znaleziono: ' + id;
         // Szukaj w załadowanych rekordach
         const found = records.find(r => r.id === id);
@@ -2792,6 +2806,8 @@ function exitGuestMode() {
   currentRecord = null;
   setGuestUI(false);
   showView('list');
+  // Usuń parametr ?id= z adresu, żeby odświeżenie nie wracało do trybu gościa
+  if (location.search) history.replaceState(null, '', location.pathname);
   document.getElementById('loginOverlay').style.display = 'flex';
   setTimeout(() => { document.getElementById('login-user').focus(); }, 200);
 }
@@ -2911,6 +2927,32 @@ window.onload = async () => {
     showToast('Połączono z Firebase ✅', 'success');
     // Załaduj userów z Firebase PRZED logowaniem
     await loadUsersFromFirebase();
+
+    // Wejście z linku QR (?id=...) — od razu pokaż kartę w trybie gościa, bez logowania
+    const qid = new URLSearchParams(location.search).get('id');
+    if (qid) {
+      guestMode = true;
+      currentRecord = null;
+      document.getElementById('loginOverlay').style.display = 'none';
+      setGuestUI(true);
+      document.getElementById('records-container').innerHTML =
+        '<div class="loader"><div class="spinner"></div>Ładowanie eksponatu...</div>';
+      db.collection('records').doc(qid).get().then(doc => {
+        if (doc.exists) {
+          const rec = { id: doc.id, ...doc.data() };
+          if (!records.some(r => r.id === rec.id)) records.push(rec);
+          showDetail(rec.id);
+        } else {
+          showToast('Nie znaleziono eksponatu o ID: ' + qid, 'error');
+          exitGuestMode();
+        }
+      }).catch(e => {
+        showToast('Błąd odczytu: ' + e.message, 'error');
+        exitGuestMode();
+      });
+      return;
+    }
+
     setTimeout(() => { document.getElementById('login-user').focus(); }, 200);
     // loadAll wywoła się po zalogowaniu
   } catch(e) {
