@@ -129,7 +129,7 @@
 
   .record-card {
     background: var(--white);
-    border-radius: 12px;
+    border-radius: 0 12px 0 0;
     box-shadow: var(--shadow);
     overflow: hidden;
     cursor: pointer;
@@ -2581,12 +2581,12 @@ function drawFullCard(doc, r, qrDataUrl, dimsCam, dimsScreen) {
   doc.text('Archiwum X  |  '+new Date().toLocaleDateString('pl-PL'), W-m, H-5, {align:'right'});
 }
 
-// Układa "Mini QR" (QR 2cm + podpis nazwa/numer, obwódka 3mm) w siatce na A4
+// Układa "Mini QR" (QR 2cm + podpis nazwa/numer, obwódka 2mm) w siatce na A4
 function drawMiniQRGrid(doc, items) {
   var W = 210, H = 297;
   var qr = 20;          // QR 2 cm
   var capH = 6.5;       // podpis: 2 linie
-  var pad = 3;          // obwódka odsunięta 3 mm od treści
+  var pad = 2;          // obwódka odsunięta 2 mm od treści
   var gap = 4;          // odstęp między kafelkami
   var contentH = qr + 1.5 + capH;
   var boxW = qr + pad*2;
@@ -2608,9 +2608,9 @@ function drawMiniQRGrid(doc, items) {
     var bx = startX + col*(boxW+gap);
     var by = marginTop + row*(boxH+gap);
 
-    // obwódka 3mm odsunięta
+    // obwódka 2mm odsunięta, prostokąt (bez zaokrągleń)
     doc.setDrawColor(160,174,192); doc.setLineWidth(0.3);
-    doc.roundedRect(bx, by, boxW, boxH, 2, 2, 'S');
+    doc.rect(bx, by, boxW, boxH, 'S');
 
     // QR wyśrodkowany
     var qx = bx + (boxW - qr)/2;
