@@ -140,6 +140,34 @@
   }
   .record-card:hover { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.15); }
 
+  /* --- Tryb zaznaczania do druku (batch) --- */
+  .record-card { position: relative; }
+  .record-card.card-selected {
+    border-color: var(--blue) !important;
+    box-shadow: 0 0 0 3px rgba(49,130,206,0.28);
+  }
+  .select-check {
+    position: absolute; top: 6px; right: 6px; z-index: 5;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--blue);
+    color: var(--blue); font-weight: 800; font-size: 0.95rem;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .card-selected .select-check { background: var(--blue); color: #fff; }
+
+  #print-select-bar {
+    display: none;
+    position: sticky; top: 52px; z-index: 90;
+    background: #ebf8ff; border-bottom: 1px solid #bee3f8;
+    padding: 10px 20px; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  #print-select-bar .psb-info { font-size: 0.85rem; color: var(--dark); font-weight: 600; }
+  #print-select-bar .psb-badge {
+    display: inline-block; background: var(--blue); color: #fff;
+    border-radius: 10px; padding: 1px 9px; font-weight: 800; font-size: 0.8rem;
+  }
+
   /* Delikatna obwódka kafelka w kolorze statusu */
   .record-card.card-czerwony { border-color: var(--red); }
   .record-card.card-żółty { border-color: var(--yellow); }
@@ -827,12 +855,29 @@
   </div>
 </div>
 
+<!-- QR / DRUK MENU MODAL -->
+<div class="modal-overlay" id="qrMenuModal" style="display:none">
+  <div class="modal" style="max-width:430px">
+    <h2>🖨️ Druk kodów QR / kart</h2>
+    <p style="font-size:0.82rem;color:var(--gray);margin-bottom:16px">Wybierz rodzaj wydruku, potem zaznacz dowolną liczbę kafelków na liście i kliknij „Drukuj”.</p>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn btn-primary" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="startPrintSelect('card')">🖼️ Wydruk karty PDF<br><span style="font-weight:400;font-size:0.75rem;opacity:0.9">pełna karta eksponatu — 1 na stronę A4</span></button>
+      <button class="btn btn-primary" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="startPrintSelect('qr')">🔳 Wydruk eksportu QR PDF<br><span style="font-weight:400;font-size:0.75rem;opacity:0.9">karta A5 z QR — 1 na stronę A4</span></button>
+      <button class="btn btn-success" style="justify-content:flex-start;padding:12px 16px;text-align:left" onclick="startPrintSelect('mini')">🏷️ Mini QR<br><span style="font-weight:400;font-size:0.75rem;opacity:0.9">sam QR 2 cm + podpis (nazwa + numer) — wiele na A4</span></button>
+    </div>
+    <div style="margin-top:18px;text-align:right">
+      <button class="btn btn-gray" onclick="closeQRMenu()">Zamknij</button>
+    </div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <header>
   <h1>ARCHIWUM <span>X</span></h1>
   <div class="header-btns" style="align-items:center;gap:6px">
     <button class="btn btn-ghost btn-sm no-print" id="btn-list" onclick="showView('list')">📋 Lista</button>
     <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">📷 Skanuj QR</button>
+    <button class="btn btn-ghost btn-sm no-print" id="btn-qr-print" onclick="openQRMenu()" title="Drukuj wiele: karty / QR / Mini QR"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm11-2h2v2h-2v-2zm3 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3 0h2v2h-2v-2z"/></svg> QR</button>
     <button class="btn btn-primary btn-sm no-print" id="btn-new" onclick="showNewForm()">+ Nowy</button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-bell" onclick="showActivityLog()" title="Historia zmian" style="position:relative">🔔<span id="bell-badge"
       style="display:none;position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;border-radius:10px;font-size:0.6rem;font-weight:700;padding:1px 5px;min-width:16px;text-align:center">0</span></button>
@@ -875,6 +920,14 @@
       </select>
       <button class="btn btn-gray btn-sm" onclick="clearFilters()" title="Wyczyść filtry">✕ Wyczyść</button>
     </div>
+  </div>
+  <div id="print-select-bar">
+    <span class="psb-info">Druk: <strong id="select-mode-label">—</strong></span>
+    <span class="psb-info">Zaznaczono: <span class="psb-badge" id="select-count">0</span></span>
+    <button class="btn btn-gray btn-sm" onclick="toggleSelectAll()">☑️ Wszystkie / żadne</button>
+    <span style="flex:1"></span>
+    <button class="btn btn-success btn-sm" id="select-print-btn" onclick="runBatchPrint()">🖨️ Drukuj (0)</button>
+    <button class="btn btn-danger btn-sm" onclick="cancelPrintSelect()">✕ Anuluj</button>
   </div>
   <div id="records-container">
     <div class="loader"><div class="spinner"></div>Ładowanie...</div>
@@ -1562,7 +1615,7 @@ function recordCardHTML(r) {
     r.producer ? `<span style="color:#718096">${r.producer}</span>` : null,
   ].filter(Boolean).join('<br>');
   const cardBorder = r.status === 'wróciło' ? 'card-czerwony' : r.status === 'sprawdzone' ? 'card-żółty' : r.status === 'gotowe' ? 'card-zielony' : r.status === 'archiwum' ? 'card-archiwum' : '';
-  return `<div class="record-card ${cardBorder}" onclick="showDetail('${r.id}')">
+  const inner = `
     <div class="card-header ${statusClass}">${r.company || '—'}${nr}</div>
     ${imgHTML}
     <div class="card-body">
@@ -1571,7 +1624,14 @@ function recordCardHTML(r) {
     <div class="card-footer">
       ${r.updatedBy ? getUserAvatar(r.updatedBy) : '<span></span>'}
       <span class="status-badge ${badgeClass}" style="font-size:0.68rem;padding:3px 10px;margin-top:0">${statusLabel}</span>
-    </div>
+    </div>`;
+  if (printSelectMode) {
+    const sel = selectedIds.has(r.id);
+    return `<div class="record-card ${cardBorder} ${sel ? 'card-selected' : ''}" data-id="${r.id}" onclick="toggleCardSelect('${r.id}')">
+    <div class="select-check">${sel ? '✓' : ''}</div>${inner}
+  </div>`;
+  }
+  return `<div class="record-card ${cardBorder}" data-id="${r.id}" onclick="showDetail('${r.id}')">${inner}
   </div>`;
 }
 
@@ -2248,138 +2308,338 @@ function getQRcanvas(callback) {
   check();
 }
 
-function exportQRpdf(mode) {
-  const r = currentRecord;
-  if (!r) return;
-  showToast(mode === 'print' ? 'Przygotowanie do druku...' : 'Generowanie PDF z QR...', '');
-  getQRcanvas(function(qrCanvas) {
-    const photoSrc = r.photoCamera || r.photoScreen || null;
-    const preloadAndGenerate = function(imgW, imgH) {
-    const { jsPDF } = window.jspdf;
-    // A4 PIONOWY - karta w formacie A5 pionowym, wysrodkowana na kartce (do druku i wyciecia)
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    const W = 210, H = 297;
-    const CW = 148, CH = 210; // A5 pionowe
-    const CX = (W - CW) / 2, CY = (H - CH) / 2;
-    const m = 8; // margines wewnetrzny karty
-    const _preloadedW = imgW, _preloadedH = imgH;
+// ---- Wspólne helpery PDF ----
+function qrTextFor(r) {
+  // URL z ID eksponatu (natywny aparat otworzy kartę w trybie gościa)
+  return location.origin + location.pathname + '?id=' + encodeURIComponent(r.id);
+}
 
-    const sc = r.status === 'wróciło' ? [229,62,62] : r.status === 'sprawdzone' ? [214,158,46] : r.status === 'gotowe' ? [56,161,105] : r.status === 'archiwum' ? [74,85,104] : [74,85,104];
-    const sl = r.status === 'wróciło' ? 'WROCILO' : r.status === 'sprawdzone' ? 'OPISANE' : r.status === 'gotowe' ? 'GOTOWE' : (r.status||'').toUpperCase();
+// Generuje kod QR poza ekranem i zwraca PNG dataURL (dla druku wsadowego)
+function makeQRDataUrl(text) {
+  return new Promise(function(resolve, reject) {
+    var holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-9999px;top:0;';
+    document.body.appendChild(holder);
+    try {
+      new QRCode(holder, { text: text, width: 240, height: 240, colorDark:'#1a202c', colorLight:'#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    } catch(e) { holder.remove(); reject(e); return; }
+    var tries = 0;
+    (function check(){
+      var canvas = holder.querySelector('canvas');
+      var img = holder.querySelector('img');
+      if (canvas) { var u = canvas.toDataURL('image/png'); holder.remove(); resolve(u); return; }
+      if (img && img.src && img.src.indexOf('data:') === 0) { var s = img.src; holder.remove(); resolve(s); return; }
+      if (++tries < 40) { setTimeout(check, 40); return; }
+      holder.remove(); reject(new Error('QR timeout'));
+    })();
+  });
+}
 
-    // Ramka karty (A5 wysrodkowane na A4)
-    doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
-    doc.roundedRect(CX, CY, CW, CH, 3, 3, 'S');
+// Wczytuje obraz i zwraca jego wymiary (0,0 gdy brak/niepowodzenie)
+function loadImageDims(src) {
+  return new Promise(function(resolve) {
+    if (!src) { resolve({w:0,h:0}); return; }
+    var im = new Image();
+    im.onload = function(){ resolve({w: im.naturalWidth||0, h: im.naturalHeight||0}); };
+    im.onerror = function(){ resolve({w:0,h:0}); };
+    im.src = src;
+  });
+}
 
-    // Pasek statusu na gorze - nazwa duza wysrodkowana, status maly
-    const headerH = 16;
-    doc.setFillColor(...sc);
-    doc.roundedRect(CX, CY, CW, headerH, 3, 3, 'F');
-    doc.rect(CX, CY + headerH/2, CW, headerH/2, 'F');
+function pdfStatusColor(r){ return r.status==='wróciło'?[229,62,62]:r.status==='sprawdzone'?[214,158,46]:r.status==='gotowe'?[56,161,105]:r.status==='archiwum'?[74,85,104]:[74,85,104]; }
+function pdfStatusLabel(r){ return r.status==='wróciło'?'WROCILO':r.status==='sprawdzone'?'OPISANE':r.status==='gotowe'?'GOTOWE':(r.status||'').toUpperCase(); }
 
-    doc.setFontSize(7.5); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-    doc.text(sl, CX + m, CY + 6);
+// Kończy dokument: druk (autoPrint + nowe okno) albo zapis pliku, z fallbackiem
+function finishPdf(doc, mode, filename, savedMsg) {
+  if (mode === 'print') {
+    doc.autoPrint();
+    var url = doc.output('bloburl');
+    var w = window.open(url, '_blank');
+    if (!w) { doc.save(filename + '.pdf'); showToast('Popup zablokowany — pobrano PDF', 'success'); return; }
+    showToast('Otwieram okno druku... 🖨️', 'success');
+  } else {
+    doc.save(filename + '.pdf');
+    showToast(savedMsg || 'PDF wygenerowany! ✅', 'success');
+  }
+}
 
-    doc.setFontSize(15); doc.setFont('helvetica','bold');
-    const firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
-    doc.text(firmaNr, CX + CW/2, CY + 12.5, {align:'center', maxWidth: CW - m*2});
+// Rysuje kartę A5 z QR (layout eksportu QR) na bieżącej stronie dokumentu
+function drawQRCard(doc, r, qrDataUrl, imgDims) {
+  var W = 210, H = 297;
+  var CW = 148, CH = 210; // A5 pionowe
+  var CX = (W - CW) / 2, CY = (H - CH) / 2;
+  var m = 8;
+  var _preloadedW = imgDims ? imgDims.w : 0, _preloadedH = imgDims ? imgDims.h : 0;
+  var sc = pdfStatusColor(r);
+  var sl = pdfStatusLabel(r);
 
-    const innerX = CX + m;
-    const innerW = CW - m*2;
-    let cy = CY + headerH + 7;
-    const bottom = CY + CH - m;
+  doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
+  doc.roundedRect(CX, CY, CW, CH, 3, 3, 'S');
 
-    // === ZDJECIE ===
-    const photoBoxH = 58;
-    const blockPhoto = r.photoCamera || r.photoScreen || null;
-    const blockPhotoLabel = r.photoCamera ? 'Zdjecie' : (r.photoScreen ? 'Print screen' : null);
-    if (blockPhoto) {
-      try {
-        var dims = (_preloadedW && _preloadedH) ? {w:_preloadedW, h:_preloadedH} : {w:4, h:3};
-        var dw = innerW, dh = dw * dims.h / dims.w;
-        if (dh > photoBoxH) { dh = photoBoxH; dw = dh * dims.w / dims.h; }
-        var ix = innerX + (innerW - dw) / 2;
-        var iy = cy + (photoBoxH - dh) / 2;
-        doc.addImage(blockPhoto, 'JPEG', ix, iy, dw, dh);
-      } catch(e) {
-        doc.setFillColor(240,240,240);
-        doc.roundedRect(innerX, cy, innerW, photoBoxH, 2, 2, 'F');
-        doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
-        doc.text('Brak zdjecia', innerX+innerW/2, cy+photoBoxH/2, {align:'center'});
-      }
-    } else {
+  var headerH = 16;
+  doc.setFillColor(sc[0],sc[1],sc[2]);
+  doc.roundedRect(CX, CY, CW, headerH, 3, 3, 'F');
+  doc.rect(CX, CY + headerH/2, CW, headerH/2, 'F');
+
+  doc.setFontSize(7.5); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+  doc.text(sl, CX + m, CY + 6);
+
+  doc.setFontSize(15); doc.setFont('helvetica','bold');
+  var firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
+  doc.text(firmaNr, CX + CW/2, CY + 12.5, {align:'center', maxWidth: CW - m*2});
+
+  var innerX = CX + m;
+  var innerW = CW - m*2;
+  var cy = CY + headerH + 7;
+  var bottom = CY + CH - m;
+
+  var photoBoxH = 58;
+  var blockPhoto = r.photoCamera || r.photoScreen || null;
+  var blockPhotoLabel = r.photoCamera ? 'Zdjecie' : (r.photoScreen ? 'Print screen' : null);
+  if (blockPhoto) {
+    try {
+      var dims = (_preloadedW && _preloadedH) ? {w:_preloadedW, h:_preloadedH} : {w:4, h:3};
+      var dw = innerW, dh = dw * dims.h / dims.w;
+      if (dh > photoBoxH) { dh = photoBoxH; dw = dh * dims.w / dims.h; }
+      var ix = innerX + (innerW - dw) / 2;
+      var iy = cy + (photoBoxH - dh) / 2;
+      doc.addImage(blockPhoto, 'JPEG', ix, iy, dw, dh);
+    } catch(e) {
       doc.setFillColor(240,240,240);
       doc.roundedRect(innerX, cy, innerW, photoBoxH, 2, 2, 'F');
       doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
       doc.text('Brak zdjecia', innerX+innerW/2, cy+photoBoxH/2, {align:'center'});
     }
-    if (blockPhotoLabel) {
-      doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-      doc.text(blockPhotoLabel, innerX+innerW/2, cy+photoBoxH+3, {align:'center'});
+  } else {
+    doc.setFillColor(240,240,240);
+    doc.roundedRect(innerX, cy, innerW, photoBoxH, 2, 2, 'F');
+    doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
+    doc.text('Brak zdjecia', innerX+innerW/2, cy+photoBoxH/2, {align:'center'});
+  }
+  if (blockPhotoLabel) {
+    doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+    doc.text(blockPhotoLabel, innerX+innerW/2, cy+photoBoxH+3, {align:'center'});
+  }
+  cy += photoBoxH + 6;
+
+  doc.setDrawColor(220,220,220); doc.setLineWidth(0.2);
+  doc.line(innerX, cy, innerX+innerW, cy);
+  cy += 6;
+
+  var details = [
+    (r.thickness||r.width||r.height) ? ['Wymiary', (r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm')] : null,
+    r.type ? ['Typ', pl(r.type)] : null,
+    r.lighting ? ['Swiatlo', pl(r.lighting)] : null,
+    lightColorStr(r) ? ['Kolor', pl(lightColorStr(r))] : null,
+    r.producer ? ['Producent', pl(r.producer)] : null,
+    r.voltage ? ['Napiecie', r.voltage] : null,
+    r.cableLength ? ['Przewody', r.cableLength] : null,
+    (Array.isArray(r.mount)&&r.mount.length) ? ['Montaz', pl(r.mount.join(', '))] : null,
+  ].filter(Boolean);
+
+  var colGap = 4;
+  var colW = (innerW - colGap) / 2;
+  var rowH = 9.5;
+  var qrReserve = 46 + 6 + 5 + 6;
+  details.forEach(function(d, i) {
+    var col = i % 2, row = Math.floor(i/2);
+    var fx = innerX + col*(colW+colGap), fy = cy + row*rowH;
+    if (fy + rowH > bottom - qrReserve) return;
+    doc.setFontSize(6); doc.setTextColor(113,128,150); doc.setFont('helvetica','bold');
+    doc.text(d[0].toUpperCase(), fx, fy);
+    doc.setFontSize(8.5); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
+    doc.text(String(d[1]), fx, fy+5, {maxWidth: colW});
+  });
+
+  var qrSize = 46;
+  var qrX = innerX + (innerW - qrSize) / 2;
+  var qrY = bottom - qrSize - 11;
+  doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+  doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+  doc.text('ID: '+r.id, innerX+innerW/2, qrY+qrSize+4.5, {align:'center'});
+
+  doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+  doc.text(new Date().toLocaleDateString('pl-PL'), CX+CW-m, bottom-1, {align:'right'});
+}
+
+// Rysuje pełną kartę eksponatu (layout karty PDF) na bieżącej stronie
+function drawFullCard(doc, r, qrDataUrl, dimsCam, dimsScreen) {
+  var W = 210, H = 297, m = 12;
+  var sc = pdfStatusColor(r);
+  var sl = pdfStatusLabel(r);
+
+  doc.setFillColor(sc[0],sc[1],sc[2]);
+  doc.rect(0, 0, W, 15, 'F');
+
+  doc.setFontSize(9); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+  var slW = doc.getTextWidth(sl) + 2;
+  doc.text(sl, W-m, 10, {align:'right'});
+
+  doc.setFontSize(16); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
+  var firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
+  doc.text(firmaNr, W/2, 10.5, {align:'center', maxWidth: W - m*2 - slW - 6});
+
+  doc.setFontSize(7); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+  doc.text(new Date().toLocaleDateString('pl-PL'), W-m, 22, {align:'right'});
+
+  var y = 20;
+
+  var boxW = (W - m*2 - 6) / 2;
+  var boxH = 75;
+  var photos = [r.photoCamera, r.photoScreen];
+  var dimsArr = [dimsCam||{w:0,h:0}, dimsScreen||{w:0,h:0}];
+  var labels = ['Zdjecie', 'Print screen'];
+
+  photos.forEach(function(p, i) {
+    var bx = m + i*(boxW+6);
+    var by = y;
+    doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
+    doc.roundedRect(bx, by, boxW, boxH, 2, 2, 'S');
+    if (p) {
+      try {
+        var iw = dimsArr[i].w||4, ih = dimsArr[i].h||3;
+        var dw = boxW-4, dh = dw*ih/iw;
+        if (dh > boxH-4) { dh = boxH-4; dw = dh*iw/ih; }
+        var ix = bx + (boxW-dw)/2;
+        var iy = by + (boxH-dh)/2;
+        doc.addImage(p, 'JPEG', ix, iy, dw, dh);
+      } catch(e) {}
+    } else {
+      doc.setFillColor(245,245,245);
+      doc.roundedRect(bx+1, by+1, boxW-2, boxH-2, 2, 2, 'F');
+      doc.setFontSize(10); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
+      doc.text(labels[i], bx+boxW/2, by+boxH/2, {align:'center'});
     }
-    cy += photoBoxH + 6;
+    doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+    doc.text(labels[i], bx+boxW/2, by+boxH+4, {align:'center'});
+  });
+  y += boxH + 10;
 
-    // === LINIA ===
-    doc.setDrawColor(220,220,220); doc.setLineWidth(0.2);
-    doc.line(innerX, cy, innerX+innerW, cy);
-    cy += 6;
+  var fields = [
+    ['Wymiary SxWxG', (r.thickness||r.width||r.height)?(r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm'):'-'],
+    ['Typ', pl(r.type)||'-'],
+    ['Podswietlenie', pl(r.lighting)||'-'],
+    ['Kolor swiatla', pl(lightColorStr(r))||'-'],
+    ['Montaz', pl(Array.isArray(r.mount)?r.mount.join(', '):r.mount)||'-'],
+    ['Producent', pl(r.producer)||'-'],
+    ['Napiecie', r.voltage||'-'],
+    ['Dl. przewodow', r.cableLength||'-'],
+  ];
+  var colW = (W - 2*m - 6) / 2;
+  var rowH = 12;
 
-    // === DANE - siatka 2 kolumny ===
-    const details = [
-      (r.thickness||r.width||r.height) ? ['Wymiary', (r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm')] : null,
-      r.type ? ['Typ', pl(r.type)] : null,
-      r.lighting ? ['Swiatlo', pl(r.lighting)] : null,
-      lightColorStr(r) ? ['Kolor', pl(lightColorStr(r))] : null,
-      r.producer ? ['Producent', pl(r.producer)] : null,
-      r.voltage ? ['Napiecie', r.voltage] : null,
-      r.cableLength ? ['Przewody', r.cableLength] : null,
-      (Array.isArray(r.mount)&&r.mount.length) ? ['Montaz', pl(r.mount.join(', '))] : null,
-    ].filter(Boolean);
+  fields.forEach(function(f, i) {
+    var col = i%2, row = Math.floor(i/2);
+    var fx = m + col*(colW+6), fy = y + row*rowH;
+    doc.setFillColor(247,250,252);
+    doc.roundedRect(fx, fy, colW, rowH-1, 1.5, 1.5, 'F');
+    doc.setFontSize(6.5); doc.setTextColor(113,128,150); doc.setFont('helvetica','bold');
+    doc.text(f[0].toUpperCase(), fx+3, fy+4);
+    doc.setFontSize(9); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
+    doc.text(String(f[1]), fx+3, fy+9.5, {maxWidth: colW-6});
+  });
+  y += Math.ceil(fields.length/2)*rowH + 6;
 
-    const colGap = 4;
-    const colW = (innerW - colGap) / 2;
-    const rowH = 9.5;
-    const qrReserve = 46 + 6 + 5 + 6; // qr + odstepy + etykieta i data na dole karty
-    details.forEach(function(d, i) {
-      const col = i % 2, row = Math.floor(i/2);
-      const fx = innerX + col*(colW+colGap), fy = cy + row*rowH;
-      if (fy + rowH > bottom - qrReserve) return;
-      doc.setFontSize(6); doc.setTextColor(113,128,150); doc.setFont('helvetica','bold');
-      doc.text(d[0].toUpperCase(), fx, fy);
+  if (r.notes) {
+    var nh = 16;
+    doc.setFillColor(235,248,255);
+    doc.rect(m, y, W-2*m, nh, 'F');
+    doc.setFillColor(49,130,206); doc.rect(m, y, 3, nh, 'F');
+    doc.setFontSize(6.5); doc.setTextColor(49,130,206); doc.setFont('helvetica','bold');
+    doc.text('UWAGI', m+6, y+5.5);
+    doc.setFontSize(8); doc.setTextColor(45,55,72); doc.setFont('helvetica','normal');
+    doc.text(pl(r.notes), m+6, y+11.5, {maxWidth: W-2*m-10});
+    y += nh + 6;
+  }
+
+  if (r.fairHistory && r.fairHistory.length) {
+    doc.setFontSize(8); doc.setTextColor(49,130,206); doc.setFont('helvetica','bold');
+    doc.text('HISTORIA TARGOW', m, y);
+    doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+    doc.line(m, y+2, W-m, y+2);
+    y += 7;
+    r.fairHistory.forEach(function(h) {
       doc.setFontSize(8.5); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
-      doc.text(String(d[1]), fx, fy+5, {maxWidth: colW});
+      doc.text(pl(h.text), m, y);
+      doc.setFont('helvetica','normal'); doc.setTextColor(160,174,192);
+      doc.text('  - '+h.date, m+doc.getTextWidth(pl(h.text)), y);
+      y += 6;
     });
+  }
 
-    // === QR na dole karty, wysrodkowany ===
-    const qrSize = 46;
-    const qrX = innerX + (innerW - qrSize) / 2;
-    const qrY = bottom - qrSize - 11;
-    doc.addImage(qrCanvas.toDataURL('image/png'), 'PNG', qrX, qrY, qrSize, qrSize);
-    doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text('ID: '+r.id, innerX+innerW/2, qrY+qrSize+4.5, {align:'center'});
+  var qrSize = 42;
+  var qrX = W - m - qrSize;
+  var qrY = H - m - qrSize - 10;
+  doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+  doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+  doc.text('Skanuj QR', qrX+qrSize/2, qrY+qrSize+4, {align:'center'});
 
-    // Data
-    doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text(new Date().toLocaleDateString('pl-PL'), CX+CW-m, bottom-1, {align:'right'});
+  doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
+  doc.line(m, H-10, W-m, H-10);
+  doc.setFontSize(6.5); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+  doc.text('ID: '+r.id, m, H-5);
+  doc.text('Archiwum X  |  '+new Date().toLocaleDateString('pl-PL'), W-m, H-5, {align:'right'});
+}
 
-    if (mode === 'print') {
-      doc.autoPrint();
-      window.open(doc.output('bloburl'), '_blank');
-      showToast('Otwieram okno druku... 🖨️', 'success');
-    } else {
-      doc.save('QR_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:'')+'.pdf');
-      showToast('PDF z QR wygenerowany! ✅', 'success');
+// Układa "Mini QR" (QR 2cm + podpis nazwa/numer, obwódka 3mm) w siatce na A4
+function drawMiniQRGrid(doc, items) {
+  var W = 210, H = 297;
+  var qr = 20;          // QR 2 cm
+  var capH = 6.5;       // podpis: 2 linie
+  var pad = 3;          // obwódka odsunięta 3 mm od treści
+  var gap = 4;          // odstęp między kafelkami
+  var contentH = qr + 1.5 + capH;
+  var boxW = qr + pad*2;
+  var boxH = contentH + pad*2;
+  var marginX = 12, marginTop = 12, marginBottom = 12;
+  var usableW = W - marginX*2;
+  var cols = Math.max(1, Math.floor((usableW + gap) / (boxW + gap)));
+  var gridW = cols*boxW + (cols-1)*gap;
+  var startX = (W - gridW) / 2;
+  var usableH = H - marginTop - marginBottom;
+  var rows = Math.max(1, Math.floor((usableH + gap) / (boxH + gap)));
+  var perPage = cols * rows;
+
+  items.forEach(function(it, idx) {
+    var onPage = idx % perPage;
+    if (idx > 0 && onPage === 0) doc.addPage();
+    var col = onPage % cols;
+    var row = Math.floor(onPage / cols);
+    var bx = startX + col*(boxW+gap);
+    var by = marginTop + row*(boxH+gap);
+
+    // obwódka 3mm odsunięta
+    doc.setDrawColor(160,174,192); doc.setLineWidth(0.3);
+    doc.roundedRect(bx, by, boxW, boxH, 2, 2, 'S');
+
+    // QR wyśrodkowany
+    var qx = bx + (boxW - qr)/2;
+    var qy = by + pad;
+    doc.addImage(it.qr, 'PNG', qx, qy, qr, qr);
+
+    // podpis: nazwa + numer
+    var capY = qy + qr + 3;
+    doc.setTextColor(26,32,44); doc.setFont('helvetica','bold'); doc.setFontSize(6);
+    doc.text(pl(it.name || '-'), bx + boxW/2, capY, {align:'center', maxWidth: boxW - 2});
+    if (it.number !== '' && it.number != null) {
+      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(74,85,104);
+      doc.text('#'+it.number, bx + boxW/2, capY + 3.2, {align:'center', maxWidth: boxW - 2});
     }
-    }; // end preloadAndGenerate
+  });
+}
 
-    if (photoSrc) {
-      var preImg = new Image();
-      preImg.onload = function() { preloadAndGenerate(preImg.naturalWidth, preImg.naturalHeight); };
-      preImg.onerror = function() { preloadAndGenerate(4, 3); };
-      preImg.src = photoSrc;
-    } else {
-      preloadAndGenerate(0, 0);
-    }
+function exportQRpdf(mode) {
+  const r = currentRecord;
+  if (!r) return;
+  showToast(mode === 'print' ? 'Przygotowanie do druku...' : 'Generowanie PDF z QR...', '');
+  getQRcanvas(function(qrCanvas) {
+    const qrDataUrl = qrCanvas.toDataURL('image/png');
+    const photoSrc = r.photoCamera || r.photoScreen || null;
+    loadImageDims(photoSrc).then(function(dims){
+      const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      drawQRCard(doc, r, qrDataUrl, dims);
+      finishPdf(doc, mode, 'QR_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:''), 'PDF z QR wygenerowany! ✅');
+    });
   });
 }
 
@@ -2388,147 +2648,124 @@ function exportCardPdf(mode) {
   if (!r) return;
   showToast(mode === 'print' ? 'Przygotowanie do druku...' : 'Generowanie PDF...', '');
   getQRcanvas(function(qrCanvas) {
-    var jsPDFobj = window.jspdf.jsPDF;
-    var doc = new jsPDFobj({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    var W = 210, H = 297, m = 12;
-    var sc = r.status === 'wróciło' ? [229,62,62] : r.status === 'sprawdzone' ? [214,158,46] : r.status === 'gotowe' ? [56,161,105] : r.status === 'archiwum' ? [74,85,104] : [74,85,104];
-    var sl = r.status === 'wróciło' ? 'WROCILO' : r.status === 'sprawdzone' ? 'OPISANE' : r.status === 'gotowe' ? 'GOTOWE' : (r.status||'').toUpperCase();
-
-    // === NAGŁÓWEK: firma duża wyśrodkowana, status mały po prawej ===
-    doc.setFillColor(...sc);
-    doc.rect(0, 0, W, 15, 'F');
-
-    // Status - mały, po prawej
-    doc.setFontSize(9); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-    var slW = doc.getTextWidth(sl) + 2;
-    doc.text(sl, W-m, 10, {align:'right'});
-
-    // Firma + numer - duże, wyśrodkowane względem całej szerokości
-    doc.setFontSize(16); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-    var firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
-    doc.text(firmaNr, W/2, 10.5, {align:'center', maxWidth: W - m*2 - slW - 6});
-
-    // Data - mała, pod paskiem po prawej
-    doc.setFontSize(7); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text(new Date().toLocaleDateString('pl-PL'), W-m, 22, {align:'right'});
-
-    var y = 20;
-
-    // === ZDJĘCIA: dwa duże boxy obok siebie ===
-    var boxW = (W - m*2 - 6) / 2;
-    var boxH = 75;
-    var photos = [r.photoCamera, r.photoScreen];
-    var labels = ['Zdjecie', 'Print screen'];
-
-    photos.forEach(function(p, i) {
-      var bx = m + i*(boxW+6);
-      var by = y;
-      // Ramka boksu
-      doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
-      doc.roundedRect(bx, by, boxW, boxH, 2, 2, 'S');
-      if (p) {
-        try {
-          var tmpImg = new Image();
-          tmpImg.src = p;
-          var iw = tmpImg.naturalWidth||4, ih = tmpImg.naturalHeight||3;
-          var dw = boxW-4, dh = dw*ih/iw;
-          if (dh > boxH-4) { dh = boxH-4; dw = dh*iw/ih; }
-          var ix = bx + (boxW-dw)/2;
-          var iy = by + (boxH-dh)/2;
-          doc.addImage(p, 'JPEG', ix, iy, dw, dh);
-        } catch(e) {}
-      } else {
-        // Pusty boks z etykietą
-        doc.setFillColor(245,245,245);
-        doc.roundedRect(bx+1, by+1, boxW-2, boxH-2, 2, 2, 'F');
-        doc.setFontSize(10); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
-        doc.text(labels[i], bx+boxW/2, by+boxH/2, {align:'center'});
-      }
-      // Etykieta pod boksem
-      doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-      doc.text(labels[i], bx+boxW/2, by+boxH+4, {align:'center'});
+    var qrDataUrl = qrCanvas.toDataURL('image/png');
+    Promise.all([loadImageDims(r.photoCamera||null), loadImageDims(r.photoScreen||null)]).then(function(d){
+      var doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      drawFullCard(doc, r, qrDataUrl, d[0], d[1]);
+      finishPdf(doc, mode, 'Karta_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:''), 'PDF karty wygenerowany! ✅');
     });
-    y += boxH + 10;
-
-    // === TABELA DANYCH: 2 kolumny ===
-    var fields = [
-      ['Wymiary SxWxG', (r.thickness||r.width||r.height)?(r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm'):'-'],
-      ['Typ', pl(r.type)||'-'],
-      ['Podswietlenie', pl(r.lighting)||'-'],
-      ['Kolor swiatla', pl(lightColorStr(r))||'-'],
-      ['Montaz', pl(Array.isArray(r.mount)?r.mount.join(', '):r.mount)||'-'],
-      ['Producent', pl(r.producer)||'-'],
-      ['Napiecie', r.voltage||'-'],
-      ['Dl. przewodow', r.cableLength||'-'],
-    ];
-    var colW = (W - 2*m - 6) / 2;
-    var rowH = 12;
-
-    fields.forEach(function(f, i) {
-      var col = i%2, row = Math.floor(i/2);
-      var fx = m + col*(colW+6), fy = y + row*rowH;
-      doc.setFillColor(247,250,252);
-      doc.roundedRect(fx, fy, colW, rowH-1, 1.5, 1.5, 'F');
-      doc.setFontSize(6.5); doc.setTextColor(113,128,150); doc.setFont('helvetica','bold');
-      doc.text(f[0].toUpperCase(), fx+3, fy+4);
-      doc.setFontSize(9); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
-      doc.text(String(f[1]), fx+3, fy+9.5, {maxWidth: colW-6});
-    });
-    y += Math.ceil(fields.length/2)*rowH + 6;
-
-    // === UWAGI ===
-    if (r.notes) {
-      var nh = 16;
-      doc.setFillColor(235,248,255);
-      doc.rect(m, y, W-2*m, nh, 'F');
-      doc.setFillColor(49,130,206); doc.rect(m, y, 3, nh, 'F');
-      doc.setFontSize(6.5); doc.setTextColor(49,130,206); doc.setFont('helvetica','bold');
-      doc.text('UWAGI', m+6, y+5.5);
-      doc.setFontSize(8); doc.setTextColor(45,55,72); doc.setFont('helvetica','normal');
-      doc.text(pl(r.notes), m+6, y+11.5, {maxWidth: W-2*m-10});
-      y += nh + 6;
-    }
-
-    // === HISTORIA TARGÓW ===
-    if (r.fairHistory && r.fairHistory.length) {
-      doc.setFontSize(8); doc.setTextColor(49,130,206); doc.setFont('helvetica','bold');
-      doc.text('HISTORIA TARGOW', m, y);
-      doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
-      doc.line(m, y+2, W-m, y+2);
-      y += 7;
-      r.fairHistory.forEach(function(h) {
-        doc.setFontSize(8.5); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
-        doc.text(pl(h.text), m, y);
-        doc.setFont('helvetica','normal'); doc.setTextColor(160,174,192);
-        doc.text('  - '+h.date, m+doc.getTextWidth(pl(h.text)), y);
-        y += 6;
-      });
-    }
-
-    // === QR - prawy dolny róg ===
-    var qrSize = 42;
-    var qrX = W - m - qrSize;
-    var qrY = H - m - qrSize - 10;
-    doc.addImage(qrCanvas.toDataURL('image/png'), 'PNG', qrX, qrY, qrSize, qrSize);
-    doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text('Skanuj QR', qrX+qrSize/2, qrY+qrSize+4, {align:'center'});
-
-    // === STOPKA ===
-    doc.setDrawColor(226,232,240); doc.setLineWidth(0.3);
-    doc.line(m, H-10, W-m, H-10);
-    doc.setFontSize(6.5); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text('ID: '+r.id, m, H-5);
-    doc.text('Archiwum X  |  '+new Date().toLocaleDateString('pl-PL'), W-m, H-5, {align:'right'});
-
-    if (mode === 'print') {
-      doc.autoPrint();
-      window.open(doc.output('bloburl'), '_blank');
-      showToast('Otwieram okno druku... 🖨️', 'success');
-    } else {
-      doc.save('Karta_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:'')+'.pdf');
-      showToast('PDF karty wygenerowany! ✅', 'success');
-    }
   });
+}
+
+// ==================== BATCH DRUK (wybór wielu kafelków) ====================
+var printSelectMode = false;
+var printMode = null;   // 'card' | 'qr' | 'mini'
+var selectedIds = new Set();
+
+function openQRMenu() { document.getElementById('qrMenuModal').style.display = 'flex'; }
+function closeQRMenu() { document.getElementById('qrMenuModal').style.display = 'none'; }
+
+function startPrintSelect(mode) {
+  closeQRMenu();
+  printMode = mode;
+  printSelectMode = true;
+  selectedIds = new Set();
+  showView('list');
+  applyFilters();
+  document.getElementById('print-select-bar').style.display = 'flex';
+  updateSelectBar();
+  showToast('Zaznacz kafelki i kliknij „Drukuj”.', '');
+}
+
+function cancelPrintSelect() {
+  printSelectMode = false;
+  printMode = null;
+  selectedIds = new Set();
+  var bar = document.getElementById('print-select-bar');
+  if (bar) bar.style.display = 'none';
+  applyFilters();
+}
+
+function toggleCardSelect(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+  var card = document.querySelector('.record-card[data-id="'+id+'"]');
+  if (card) {
+    var on = selectedIds.has(id);
+    card.classList.toggle('card-selected', on);
+    var chk = card.querySelector('.select-check');
+    if (chk) chk.textContent = on ? '✓' : '';
+  }
+  updateSelectBar();
+}
+
+function toggleSelectAll() {
+  var cards = document.querySelectorAll('#records-container .record-card');
+  var allSelected = cards.length > 0 && Array.prototype.every.call(cards, function(c){ return selectedIds.has(c.getAttribute('data-id')); });
+  cards.forEach(function(c){
+    var id = c.getAttribute('data-id');
+    if (allSelected) selectedIds.delete(id); else selectedIds.add(id);
+  });
+  applyFilters();
+  updateSelectBar();
+}
+
+function updateSelectBar() {
+  var bar = document.getElementById('print-select-bar');
+  if (!bar) return;
+  var n = selectedIds.size;
+  var modeLabel = printMode==='card' ? 'Karta PDF' : printMode==='qr' ? 'Eksport QR PDF' : 'Mini QR';
+  document.getElementById('select-mode-label').textContent = modeLabel;
+  document.getElementById('select-count').textContent = n;
+  var btn = document.getElementById('select-print-btn');
+  if (btn) {
+    btn.textContent = '🖨️ Drukuj (' + n + ')';
+    btn.disabled = n === 0;
+    btn.style.opacity = n === 0 ? '0.5' : '1';
+  }
+}
+
+async function runBatchPrint() {
+  var ids = Array.from(selectedIds);
+  var recs = ids.map(function(id){ return records.find(function(r){ return r.id === id; }); }).filter(Boolean);
+  if (!recs.length) { showToast('Nie zaznaczono zadnego kafelka', 'error'); return; }
+  var btn = document.getElementById('select-print-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Generowanie...'; }
+  showToast('Generowanie PDF (' + recs.length + ' szt.)...', '');
+  try {
+    var doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    if (printMode === 'mini') {
+      var items = [];
+      for (var a = 0; a < recs.length; a++) {
+        var rm = recs[a];
+        var qrm = await makeQRDataUrl(qrTextFor(rm));
+        items.push({ qr: qrm, name: rm.company || '-', number: (rm.number != null ? rm.number : '') });
+      }
+      drawMiniQRGrid(doc, items);
+    } else if (printMode === 'qr') {
+      for (var b = 0; b < recs.length; b++) {
+        var rq = recs[b];
+        if (b > 0) doc.addPage();
+        var qrq = await makeQRDataUrl(qrTextFor(rq));
+        var dq = await loadImageDims(rq.photoCamera || rq.photoScreen || null);
+        drawQRCard(doc, rq, qrq, dq);
+      }
+    } else { // card
+      for (var c = 0; c < recs.length; c++) {
+        var rc = recs[c];
+        if (c > 0) doc.addPage();
+        var qrc = await makeQRDataUrl(qrTextFor(rc));
+        var dcam = await loadImageDims(rc.photoCamera || null);
+        var dscr = await loadImageDims(rc.photoScreen || null);
+        drawFullCard(doc, rc, qrc, dcam, dscr);
+      }
+    }
+    var fname = (printMode === 'mini' ? 'MiniQR' : printMode === 'qr' ? 'QR' : 'Karty') + '_' + recs.length + 'szt';
+    finishPdf(doc, 'print', fname, '');
+  } catch(e) {
+    showToast('Blad generowania: ' + (e && e.message ? e.message : e), 'error');
+  } finally {
+    updateSelectBar();
+  }
 }
 
 // ==================== PRINT (fallback) ====================
@@ -2811,7 +3048,7 @@ let guestMode = false;
 
 function setGuestUI(on) {
   // W trybie gościa ukryj wszystko poza skanowaniem
-  ['btn-list','btn-new','btn-bell'].forEach(id => {
+  ['btn-list','btn-new','btn-bell','btn-qr-print'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = on ? 'none' : '';
   });
