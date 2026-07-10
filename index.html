@@ -175,6 +175,17 @@
   }
   .card-selected .select-check { background: var(--blue); color: #fff; }
 
+  /* Wykrzyknik: montaż wymaga szablonu/dystansów */
+  .tile-warn {
+    position: absolute; top: 6px; left: 6px; z-index: 6;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--red); color: #fff;
+    font-weight: 900; font-size: 1rem; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+    cursor: help;
+  }
+
   #print-select-bar {
     display: none;
     position: sticky; top: 52px; z-index: 90;
@@ -1346,6 +1357,12 @@ function lightingStr(r) {
   return Array.isArray(r.lighting) ? r.lighting.join(', ') : (r.lighting || '');
 }
 
+// Montaż inny niż profil aluminiowy / chmura wymaga przygotowania szablonu i dystansów
+function needsTemplate(r) {
+  const m = Array.isArray(r.mount) ? r.mount : (r.mount ? [r.mount] : []);
+  return m.some(v => v !== 'profil-alu' && v !== 'chmura');
+}
+
 // ==================== FIREBASE INIT ====================
 function initFirebase() {
   const raw = document.getElementById('firebaseConfigInput').value.trim();
@@ -1645,7 +1662,10 @@ function recordCardHTML(r) {
     r.producer ? `<span style="color:#718096">${r.producer}</span>` : null,
   ].filter(Boolean).join('<br>');
   const cardBorder = r.status === 'wróciło' ? 'card-czerwony' : r.status === 'sprawdzone' ? 'card-żółty' : r.status === 'gotowe' ? 'card-zielony' : r.status === 'archiwum' ? 'card-archiwum' : '';
-  const inner = `
+  const warnBadge = needsTemplate(r)
+    ? `<div class="tile-warn" title="Uwaga: montaż wymaga przygotowania szablonu (dla snap-fix / dystansów) oraz przygotowania dystansów">!</div>`
+    : '';
+  const inner = `${warnBadge}
     <div class="card-header ${statusClass}">${r.company || '—'}${nr}</div>
     ${imgHTML}
     <div class="card-body">
@@ -2404,8 +2424,6 @@ function loadImageDims(src) {
   });
 }
 
-function pdfStatusColor(r){ return r.status==='wróciło'?[229,62,62]:r.status==='sprawdzone'?[214,158,46]:r.status==='gotowe'?[56,161,105]:r.status==='archiwum'?[74,85,104]:[74,85,104]; }
-function pdfStatusLabel(r){ return r.status==='wróciło'?'WROCILO':r.status==='sprawdzone'?'OPISANE':r.status==='gotowe'?'GOTOWE':(r.status||'').toUpperCase(); }
 
 // Kończy dokument: druk (autoPrint + nowe okno) albo zapis pliku, z fallbackiem
 function finishPdf(doc, mode, filename, savedMsg) {
@@ -2482,23 +2500,19 @@ function drawQRCard(doc, r, qrDataUrl, imgDims) {
   var CX = (W - CW) / 2, CY = (H - CH) / 2;
   var m = 8;
   var _preloadedW = imgDims ? imgDims.w : 0, _preloadedH = imgDims ? imgDims.h : 0;
-  var sc = pdfStatusColor(r);
-  var sl = pdfStatusLabel(r);
 
   doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
   doc.roundedRect(CX, CY, CW, CH, 3, 3, 'S');
 
+  // Nagłówek neutralny — bez statusu i koloru (te są tylko w widoku strony)
   var headerH = 16;
-  doc.setFillColor(sc[0],sc[1],sc[2]);
+  doc.setFillColor(26,32,44);
   doc.roundedRect(CX, CY, CW, headerH, 3, 3, 'F');
   doc.rect(CX, CY + headerH/2, CW, headerH/2, 'F');
 
-  doc.setFontSize(7.5); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-  doc.text(sl, CX + m, CY + 6);
-
-  doc.setFontSize(15); doc.setFont('helvetica','bold');
+  doc.setFontSize(15); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
   var firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
-  doc.text(firmaNr, CX + CW/2, CY + 12.5, {align:'center', maxWidth: CW - m*2});
+  doc.text(firmaNr, CX + CW/2, CY + 10.5, {align:'center', maxWidth: CW - m*2});
 
   var innerX = CX + m;
   var innerW = CW - m*2;
@@ -2577,19 +2591,13 @@ function drawQRCard(doc, r, qrDataUrl, imgDims) {
 // Rysuje pełną kartę eksponatu (layout karty PDF) na bieżącej stronie
 function drawFullCard(doc, r, qrDataUrl, dimsCam, dimsScreen) {
   var W = 210, H = 297, m = 12;
-  var sc = pdfStatusColor(r);
-  var sl = pdfStatusLabel(r);
-
-  doc.setFillColor(sc[0],sc[1],sc[2]);
+  // Nagłówek neutralny — bez statusu i koloru (te są tylko w widoku strony)
+  doc.setFillColor(26,32,44);
   doc.rect(0, 0, W, 15, 'F');
-
-  doc.setFontSize(9); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-  var slW = doc.getTextWidth(sl) + 2;
-  doc.text(sl, W-m, 10, {align:'right'});
 
   doc.setFontSize(16); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
   var firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
-  doc.text(firmaNr, W/2, 10.5, {align:'center', maxWidth: W - m*2 - slW - 6});
+  doc.text(firmaNr, W/2, 10.5, {align:'center', maxWidth: W - m*2});
 
   doc.setFontSize(7); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
   doc.text(new Date().toLocaleDateString('pl-PL'), W-m, 22, {align:'right'});
