@@ -175,10 +175,10 @@
   }
   .card-selected .select-check { background: var(--blue); color: #fff; }
 
-  /* Wykrzyknik: montaż wymaga szablonu/dystansów — prawy dolny narożnik (stopka) */
-  .card-footer-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  /* Stopka kafelka: status zawsze wyśrodkowany, avatar i wykrzyknik pozycjonowane absolutnie */
+  .footer-avatar { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 2; }
   .tile-warn {
-    flex: 0 0 auto;
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 2;
     width: 22px; height: 22px; border-radius: 50%;
     background: var(--red); color: #fff;
     font-weight: 900; font-size: 0.95rem; line-height: 1;
@@ -252,12 +252,14 @@
 
   /* Stopka kafelka */
   .card-footer {
+    position: relative;
     padding: 8px 12px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     border-top: 1px solid #edf2f7;
     background: #fafafa;
+    min-height: 42px;
   }
 
   .status-badge {
@@ -1649,7 +1651,7 @@ function renderList(filteredRecords) {
 function recordCardHTML(r) {
   const statusClass = r.status === 'wróciło' ? 'status-czerwony' : r.status === 'sprawdzone' ? 'status-żółty' : r.status === 'gotowe' ? 'status-zielony' : r.status === 'archiwum' ? 'status-archiwum' : 'status-brak';
   const badgeClass = r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'archiwum' ? 'badge-archiwum' : '';
-  const statusLabel = r.status === 'wróciło' ? '🔴 Wróciło' : r.status === 'sprawdzone' ? '🟡 Opisane' : r.status === 'gotowe' ? '🟢 Gotowe' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
+  const statusLabel = r.status === 'wróciło' ? 'Wróciło' : r.status === 'sprawdzone' ? 'Opisane' : r.status === 'gotowe' ? 'Gotowe' : r.status === 'archiwum' ? 'Archiwum' : r.status || '—';
   const cardPhoto = r.photoCamera || r.photoScreen || null;
   const imgHTML = cardPhoto
     ? `<div class="card-img"><img src="${cardPhoto}" alt="zdjęcie"></div>`
@@ -1673,11 +1675,9 @@ function recordCardHTML(r) {
       <div class="card-meta">${metaLines}</div>
     </div>
     <div class="card-footer">
-      ${r.updatedBy ? getUserAvatar(r.updatedBy) : '<span></span>'}
-      <div class="card-footer-right">
-        <span class="status-badge ${badgeClass}" style="font-size:0.68rem;padding:3px 10px;margin-top:0">${statusLabel}</span>
-        ${warnBadge}
-      </div>
+      <span class="footer-avatar">${r.updatedBy ? getUserAvatar(r.updatedBy) : ''}</span>
+      <span class="status-badge ${badgeClass}" style="font-size:0.68rem;padding:3px 10px;margin-top:0">${statusLabel}</span>
+      ${warnBadge}
     </div>`;
   if (printSelectMode) {
     const sel = selectedIds.has(r.id);
