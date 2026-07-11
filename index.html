@@ -63,7 +63,7 @@
   .btn {
     padding: 8px 16px;
     border: none;
-    border-radius: var(--radius);
+    border-radius: 0 var(--radius) 0 0;
     font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
@@ -79,10 +79,10 @@
   .btn-success:hover { background: #276749; }
   .btn-danger { background: var(--red); color: #fff; }
   .btn-danger:hover { background: #9b2c2c; }
-  .btn-ghost { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,0.3); }
-  .btn-ghost:hover { background: rgba(255,255,255,0.1); }
-  .btn-gray { background: var(--lightgray); color: var(--dark); }
-  .btn-gray:hover { background: #cbd5e0; }
+  .btn-ghost { background: #edf2f7; color: var(--dark); border: 1.5px solid #cbd5e0; }
+  .btn-ghost:hover { background: #e2e8f0; }
+  .btn-gray { background: #edf2f7; color: var(--dark); }
+  .btn-gray:hover { background: #e2e8f0; }
   .btn-yellow { background: var(--yellow); color: #fff; }
   .btn-sm { padding: 5px 10px; font-size: 0.78rem; }
 
@@ -113,9 +113,9 @@
   .filter-select {
     padding: 8px 12px;
     border: 1.5px solid var(--lightgray);
-    border-radius: var(--radius);
+    border-radius: 0 var(--radius) 0 0;
     font-size: 0.85rem;
-    background: #fff;
+    background: #edf2f7;
     cursor: pointer;
     outline: none;
   }
@@ -146,7 +146,7 @@
     width: 100%;
     text-align: left;
     padding: 12px 16px;
-    background: #f7fafc;
+    background: #fff;
     border: 2.25px solid var(--blue);
     border-radius: 0 12px 0 0;
     color: #2d3748;
@@ -174,6 +174,18 @@
     box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   }
   .card-selected .select-check { background: var(--blue); color: #fff; }
+
+  /* Stopka kafelka: status zawsze wyśrodkowany, avatar i wykrzyknik pozycjonowane absolutnie */
+  .footer-avatar { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 2; }
+  .tile-warn {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 2;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--red); color: #fff;
+    font-weight: 900; font-size: 0.95rem; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+    cursor: help;
+  }
 
   #print-select-bar {
     display: none;
@@ -240,12 +252,14 @@
 
   /* Stopka kafelka */
   .card-footer {
+    position: relative;
     padding: 8px 12px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     border-top: 1px solid #edf2f7;
     background: #fafafa;
+    min-height: 42px;
   }
 
   .status-badge {
@@ -340,8 +354,8 @@
     min-width: 120px;
     padding: 10px;
     border: 2px solid var(--lightgray);
-    border-radius: var(--radius);
-    background: #fff;
+    border-radius: 0 var(--radius) 0 0;
+    background: #edf2f7;
     cursor: pointer;
     text-align: center;
     font-size: 0.82rem;
@@ -410,13 +424,13 @@
   .check-pill {
     padding: 6px 12px;
     border: 1.5px solid var(--lightgray);
-    border-radius: 20px;
+    border-radius: 0 var(--radius) 0 0;
     font-size: 0.8rem;
     cursor: pointer;
     transition: all 0.12s;
     user-select: none;
     color: var(--dark);
-    background: #fff;
+    background: #edf2f7;
   }
   .check-pill.selected { border-color: var(--blue); background: #ebf8ff; color: var(--blue); font-weight: 600; }
   .check-pill input { display: none; }
@@ -1000,13 +1014,18 @@
           <div style="display:flex; gap:6px; margin-bottom:6px">
             <button type="button" class="btn btn-gray btn-sm" style="flex:1" onclick="document.getElementById('photo-camera-capture').click()">📷 Aparat</button>
             <button type="button" class="btn btn-gray btn-sm" style="flex:1" onclick="document.getElementById('photo-camera-gallery').click()">🖼️ Galeria</button>
+            <button type="button" class="btn btn-primary btn-sm" style="flex:1" onclick="activatePaste('camera')">📋 Wklej</button>
           </div>
           <input type="file" id="photo-camera-capture" accept="image/*" capture="environment" style="display:none" onchange="handlePhoto(this,'camera')">
           <input type="file" id="photo-camera-gallery" accept="image/*" style="display:none" onchange="handlePhoto(this,'camera')">
           <div id="preview-camera">
-            <div class="photo-upload-area" style="padding:12px; pointer-events:none">
+            <div class="photo-upload-area" id="paste-area-camera"
+              style="padding:12px; cursor:pointer; border:2px dashed #bee3f8; background:#ebf8ff;"
+              onclick="activatePaste('camera')"
+              tabindex="0"
+              title="Kliknij i wklej Ctrl+V lub użyj Aparat/Galeria">
               <div style="font-size:1.5rem">📷</div>
-              <div style="font-size:0.75rem; color:var(--gray)">brak zdjęcia</div>
+              <div class="paste-hint" style="font-size:0.75rem; color:var(--blue); font-weight:600;">Aparat / Galeria<br>lub wklej Ctrl+V</div>
             </div>
           </div>
         </div>
@@ -1081,10 +1100,10 @@
     <div class="form-section">
       <div class="section-title">Sposób podświetlenia</div>
       <div class="check-group" id="lighting-group">
-        <label class="check-pill" onclick="togglePill(this,'f-lighting')"><input type="radio" name="lighting" value="Frontlit">Frontlit</label>
-        <label class="check-pill" onclick="togglePill(this,'f-lighting')"><input type="radio" name="lighting" value="HALO">HALO</label>
-        <label class="check-pill" onclick="togglePill(this,'f-lighting')"><input type="radio" name="lighting" value="Sidelit">Sidelit</label>
-        <label class="check-pill" onclick="togglePillOther(this,'lighting-other-wrap','f-lighting')"><input type="radio" name="lighting" value="inne">Inne</label>
+        <label class="check-pill" onclick="toggleLighting(this)"><input type="checkbox" name="lighting" value="Frontlit">Frontlit</label>
+        <label class="check-pill" onclick="toggleLighting(this)"><input type="checkbox" name="lighting" value="HALO">HALO</label>
+        <label class="check-pill" onclick="toggleLighting(this)"><input type="checkbox" name="lighting" value="Sidelit">Sidelit</label>
+        <label class="check-pill" onclick="toggleLighting(this)"><input type="checkbox" name="lighting" value="inne">Inne</label>
       </div>
       <input type="hidden" id="f-lighting" value="">
       <div class="form-group inline-other" id="lighting-other-wrap">
@@ -1247,23 +1266,20 @@
     <!-- QR CODE -->
     <div class="qr-section">
       <div class="section-title" style="text-align:left; margin-bottom:12px">Kod QR eksponatu</div>
-      <div style="display:flex; gap:24px; align-items:center; flex-wrap:wrap">
-        <div>
-          <div id="qrcode"></div>
-          <div style="font-size:0.7rem; color:var(--gray); margin-top:6px; text-align:center" id="d-qr-id">—</div>
+      <!-- QR generowany w ukryciu (potrzebny do eksportu/druku PDF), nie pokazywany w podglądzie -->
+      <div style="position:absolute; left:-9999px; top:-9999px; width:0; height:0; overflow:hidden;" aria-hidden="true">
+        <div id="qrcode"></div>
+        <div id="d-qr-id">—</div>
+      </div>
+      <p style="font-size:0.82rem; color:var(--gray); margin-bottom:12px">Kod QR jest na karcie eksponatu i w wydruku QR — wyeksportuj lub wydrukuj poniżej.</p>
+      <div style="display:flex; flex-direction:column; gap:8px; max-width:380px">
+        <div style="display:flex; gap:8px">
+          <button class="btn btn-gray" style="flex:1" onclick="exportQRpdf()">📄 Eksportuj QR do PDF</button>
+          <button class="btn btn-gray" onclick="exportQRpdf('print')" title="Drukuj QR">🖨️</button>
         </div>
-        <div style="flex:1; min-width:180px">
-          <p style="font-size:0.82rem; color:var(--gray); margin-bottom:12px">Zeskanuj kod QR telefonem aby otworzyć kartę eksponatu.</p>
-          <div style="display:flex; flex-direction:column; gap:8px">
-            <div style="display:flex; gap:8px">
-              <button class="btn btn-gray" style="flex:1" onclick="exportQRpdf()">📄 Eksportuj QR do PDF</button>
-              <button class="btn btn-gray" onclick="exportQRpdf('print')" title="Drukuj QR">🖨️</button>
-            </div>
-            <div style="display:flex; gap:8px">
-              <button class="btn btn-gray" style="flex:1" onclick="exportCardPdf()">📋 Eksportuj kartę do PDF</button>
-              <button class="btn btn-gray" onclick="exportCardPdf('print')" title="Drukuj kartę">🖨️</button>
-            </div>
-          </div>
+        <div style="display:flex; gap:8px">
+          <button class="btn btn-gray" style="flex:1" onclick="exportCardPdf()">📋 Eksportuj kartę do PDF</button>
+          <button class="btn btn-gray" onclick="exportCardPdf('print')" title="Drukuj kartę">🖨️</button>
         </div>
       </div>
     </div>
@@ -1329,10 +1345,22 @@ let photoData = { camera: null, screen: null };
 let selectedStatus = '';
 let selectedMount = [];
 let selectedLightColors = [];
+let selectedLighting = [];
 
 function lightColorStr(r) {
   // Stare rekordy: pojedynczy tekst, nowe: tablica kolorów
   return Array.isArray(r.lightColor) ? r.lightColor.join(', ') : (r.lightColor || '');
+}
+
+function lightingStr(r) {
+  // Stare rekordy: pojedynczy tekst, nowe: tablica sposobów podświetlenia
+  return Array.isArray(r.lighting) ? r.lighting.join(', ') : (r.lighting || '');
+}
+
+// Montaż inny niż profil aluminiowy / chmura wymaga przygotowania szablonu i dystansów
+function needsTemplate(r) {
+  const m = Array.isArray(r.mount) ? r.mount : (r.mount ? [r.mount] : []);
+  return m.some(v => v !== 'profil-alu' && v !== 'chmura');
 }
 
 // ==================== FIREBASE INIT ====================
@@ -1620,7 +1648,7 @@ function renderList(filteredRecords) {
 function recordCardHTML(r) {
   const statusClass = r.status === 'wróciło' ? 'status-czerwony' : r.status === 'sprawdzone' ? 'status-żółty' : r.status === 'gotowe' ? 'status-zielony' : r.status === 'archiwum' ? 'status-archiwum' : 'status-brak';
   const badgeClass = r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'archiwum' ? 'badge-archiwum' : '';
-  const statusLabel = r.status === 'wróciło' ? '🔴 Wróciło' : r.status === 'sprawdzone' ? '🟡 Opisane' : r.status === 'gotowe' ? '🟢 Gotowe' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
+  const statusLabel = r.status === 'wróciło' ? 'Wróciło' : r.status === 'sprawdzone' ? 'Opisane' : r.status === 'gotowe' ? 'Gotowe' : r.status === 'archiwum' ? 'Archiwum' : r.status || '—';
   const cardPhoto = r.photoCamera || r.photoScreen || null;
   const imgHTML = cardPhoto
     ? `<div class="card-img"><img src="${cardPhoto}" alt="zdjęcie"></div>`
@@ -1634,6 +1662,9 @@ function recordCardHTML(r) {
     r.producer ? `<span style="color:#718096">${r.producer}</span>` : null,
   ].filter(Boolean).join('<br>');
   const cardBorder = r.status === 'wróciło' ? 'card-czerwony' : r.status === 'sprawdzone' ? 'card-żółty' : r.status === 'gotowe' ? 'card-zielony' : r.status === 'archiwum' ? 'card-archiwum' : '';
+  const warnBadge = needsTemplate(r)
+    ? `<div class="tile-warn" title="Uwaga: montaż wymaga przygotowania szablonu (dla snap-fix / dystansów) oraz przygotowania dystansów">!</div>`
+    : '';
   const inner = `
     <div class="card-header ${statusClass}">${r.company || '—'}${nr}</div>
     ${imgHTML}
@@ -1641,8 +1672,9 @@ function recordCardHTML(r) {
       <div class="card-meta">${metaLines}</div>
     </div>
     <div class="card-footer">
-      ${r.updatedBy ? getUserAvatar(r.updatedBy) : '<span></span>'}
+      <span class="footer-avatar">${r.updatedBy ? getUserAvatar(r.updatedBy) : ''}</span>
       <span class="status-badge ${badgeClass}" style="font-size:0.68rem;padding:3px 10px;margin-top:0">${statusLabel}</span>
+      ${warnBadge}
     </div>`;
   if (printSelectMode) {
     const sel = selectedIds.has(r.id);
@@ -1762,6 +1794,7 @@ function resetForm() {
   document.getElementById('preview-screen').innerHTML = '';
   selectedMount = [];
   selectedLightColors = [];
+  selectedLighting = [];
   renderFairHistory();
 }
 
@@ -1830,6 +1863,16 @@ function toggleLightColor(label) {
   document.getElementById('f-lightcolor').value = JSON.stringify(selectedLightColors);
   const wrap = document.getElementById('lightcolor-other-wrap');
   wrap.classList.toggle('show', selectedLightColors.includes('inne'));
+}
+
+function toggleLighting(label) {
+  const input = label.querySelector('input');
+  label.classList.toggle('selected', input.checked);
+  if (input.checked) { if (!selectedLighting.includes(input.value)) selectedLighting.push(input.value); }
+  else { selectedLighting = selectedLighting.filter(v => v !== input.value); }
+  document.getElementById('f-lighting').value = JSON.stringify(selectedLighting);
+  const wrap = document.getElementById('lighting-other-wrap');
+  wrap.classList.toggle('show', selectedLighting.includes('inne'));
 }
 
 function updateSubtype() {
@@ -1959,8 +2002,14 @@ async function saveRecord() {
     else typeStr = '3D blokowe';
   } else if (typeStr === 'inne') typeStr = document.getElementById('f-type-other').value;
 
-  let lighting = document.getElementById('f-lighting').value;
-  if (lighting === 'inne') lighting = document.getElementById('f-lighting-other').value;
+  // Podświetlenie: wielokrotny wybór; "inne" zastąp wpisanym tekstem
+  let lightings = [...selectedLighting];
+  const liOtherIdx = lightings.indexOf('inne');
+  if (liOtherIdx >= 0) {
+    lightings.splice(liOtherIdx, 1);
+    const liOther = document.getElementById('f-lighting-other').value.trim();
+    if (liOther) lightings.push(...liOther.split(',').map(s => s.trim()).filter(Boolean));
+  }
 
   // Kolory światła: wielokrotny wybór; "inne" zastąp wpisanym tekstem
   let lightColors = [...selectedLightColors];
@@ -1981,7 +2030,7 @@ async function saveRecord() {
     dimUnit: document.getElementById('f-dim-unit').value || 'cm',
     status: document.getElementById('f-status').value,
     type: typeStr,
-    lighting,
+    lighting: lightings,
     lightColor: lightColors,
     mount: JSON.parse(document.getElementById('f-mount').value || '[]'),
     producer: document.getElementById('f-producer').value === 'inne'
@@ -2017,6 +2066,7 @@ async function saveRecord() {
     localStorage.setItem('archivum_records', JSON.stringify(records));
     logActivity(isEdit ? 'edytował(a)' : 'utworzył(a)', { company: record.company, number: record.number || (existingRec && existingRec.number), id: savedId });
     showToast('Zapisano! ✅', 'success');
+    fireConfetti();
     renderList();
     showDetail(savedId);
     return;
@@ -2033,6 +2083,7 @@ async function saveRecord() {
     }
     logActivity(isEdit ? 'edytował(a)' : 'utworzył(a)', { company: record.company, number: record.number || (existingRec && existingRec.number), id: savedId });
     showToast('Zapisano! ✅', 'success');
+    fireConfetti();
     // Otwórz szczegóły zapisanego eksponatu (poczekaj aż snapshot zaktualizuje listę)
     openDetailWhenReady(savedId);
   } catch(e) {
@@ -2083,7 +2134,7 @@ function showDetail(id) {
 
   document.getElementById('d-dims').textContent = (r.thickness || r.width || r.height) ? `${r.width||'?'} × ${r.height||'?'} × ${r.thickness||'?'} ${r.dimUnit||'cm'}` : '—';
   document.getElementById('d-type').textContent = r.type || '—';
-  document.getElementById('d-lighting').textContent = r.lighting || '—';
+  document.getElementById('d-lighting').textContent = lightingStr(r) || '—';
   document.getElementById('d-lightcolor').textContent = lightColorStr(r) || '—';
   document.getElementById('d-mount').textContent = Array.isArray(r.mount) ? r.mount.join(', ') || '—' : r.mount || '—';
   document.getElementById('d-producer').textContent = r.producer || '—';
@@ -2200,19 +2251,28 @@ function editCurrentRecord() {
     }
   }
 
-  // Podświetlenie
-  if (r.lighting) {
-    document.getElementById('f-lighting').value = r.lighting;
+  // Podświetlenie (wielokrotny wybór; stare rekordy = pojedynczy tekst)
+  if (r.lighting && (Array.isArray(r.lighting) ? r.lighting.length : true)) {
+    const liArr = Array.isArray(r.lighting) ? [...r.lighting] : [r.lighting];
+    const stdLighting = ['Frontlit','HALO','Sidelit'];
+    selectedLighting = [];
+    const customLighting = [];
+    liArr.forEach(l => {
+      if (stdLighting.includes(l)) selectedLighting.push(l);
+      else customLighting.push(l);
+    });
+    if (customLighting.length) {
+      selectedLighting.push('inne');
+      document.getElementById('lighting-other-wrap').classList.add('show');
+      document.getElementById('f-lighting-other').value = customLighting.join(', ');
+    }
     document.querySelectorAll('input[name="lighting"]').forEach(inp => {
-      if (inp.value === r.lighting) {
+      if (selectedLighting.includes(inp.value)) {
+        inp.checked = true;
         inp.closest('.check-pill').classList.add('selected');
-      } else if (inp.value === 'inne' && !['Frontlit','HALO','Sidelit'].includes(r.lighting)) {
-        inp.closest('.check-pill').classList.add('selected');
-        document.getElementById('lighting-other-wrap').classList.add('show');
-        document.getElementById('f-lighting-other').value = r.lighting;
-        document.getElementById('f-lighting').value = 'inne';
       }
     });
+    document.getElementById('f-lighting').value = JSON.stringify(selectedLighting);
   }
 
   // Kolor światła (wielokrotny wybór; stare rekordy = pojedynczy tekst)
@@ -2365,8 +2425,6 @@ function loadImageDims(src) {
   });
 }
 
-function pdfStatusColor(r){ return r.status==='wróciło'?[229,62,62]:r.status==='sprawdzone'?[214,158,46]:r.status==='gotowe'?[56,161,105]:r.status==='archiwum'?[74,85,104]:[74,85,104]; }
-function pdfStatusLabel(r){ return r.status==='wróciło'?'WROCILO':r.status==='sprawdzone'?'OPISANE':r.status==='gotowe'?'GOTOWE':(r.status||'').toUpperCase(); }
 
 // Kończy dokument: druk (autoPrint + nowe okno) albo zapis pliku, z fallbackiem
 function finishPdf(doc, mode, filename, savedMsg) {
@@ -2374,12 +2432,66 @@ function finishPdf(doc, mode, filename, savedMsg) {
     doc.autoPrint();
     var url = doc.output('bloburl');
     var w = window.open(url, '_blank');
-    if (!w) { doc.save(filename + '.pdf'); showToast('Popup zablokowany — pobrano PDF', 'success'); return; }
+    if (!w) { doc.save(filename + '.pdf'); showToast('Popup zablokowany — pobrano PDF', 'success'); fireConfetti(); return; }
     showToast('Otwieram okno druku... 🖨️', 'success');
   } else {
     doc.save(filename + '.pdf');
     showToast(savedMsg || 'PDF wygenerowany! ✅', 'success');
   }
+  fireConfetti();
+}
+
+// ==================== KONFETTI (nagroda przy zapisie/druku) ====================
+function fireConfetti() {
+  try {
+    var canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:99999';
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    document.body.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+    var colors = ['#e53e3e','#d69e2e','#38a169','#3182ce','#805ad5','#dd6b20','#319795','#d53f8c','#f6e05e'];
+    var parts = [];
+    // Dwa działka z dolnych rogów strzelające ku środkowi
+    var cannons = [ { x: 0, y: H, ang: -Math.PI/3 }, { x: W, y: H, ang: -Math.PI*2/3 } ];
+    cannons.forEach(function(c) {
+      for (var i = 0; i < 70; i++) {
+        var a = c.ang + (Math.random() - 0.5) * (Math.PI/3);
+        var sp = 9 + Math.random() * 13;
+        parts.push({
+          x: c.x, y: c.y,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+          size: 5 + Math.random() * 7,
+          color: colors[(Math.random() * colors.length) | 0],
+          rot: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.35,
+          life: 1
+        });
+      }
+    });
+    var frame = 0;
+    (function anim() {
+      ctx.clearRect(0, 0, W, H);
+      frame++;
+      var alive = false;
+      parts.forEach(function(p) {
+        p.vy += 0.28; p.vx *= 0.99;
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        if (frame > 55) p.life -= 0.02;
+        if (p.life > 0 && p.y < H + 40) {
+          alive = true;
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, p.life);
+          ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size * 0.6);
+          ctx.restore();
+        }
+      });
+      if (alive && frame < 230) requestAnimationFrame(anim);
+      else canvas.remove();
+    })();
+  } catch(e) {}
 }
 
 // Rysuje kartę A5 z QR (layout eksportu QR) na bieżącej stronie dokumentu
@@ -2389,23 +2501,19 @@ function drawQRCard(doc, r, qrDataUrl, imgDims) {
   var CX = (W - CW) / 2, CY = (H - CH) / 2;
   var m = 8;
   var _preloadedW = imgDims ? imgDims.w : 0, _preloadedH = imgDims ? imgDims.h : 0;
-  var sc = pdfStatusColor(r);
-  var sl = pdfStatusLabel(r);
 
   doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
   doc.roundedRect(CX, CY, CW, CH, 3, 3, 'S');
 
+  // Nagłówek neutralny — bez statusu i koloru (te są tylko w widoku strony)
   var headerH = 16;
-  doc.setFillColor(sc[0],sc[1],sc[2]);
+  doc.setFillColor(26,32,44);
   doc.roundedRect(CX, CY, CW, headerH, 3, 3, 'F');
   doc.rect(CX, CY + headerH/2, CW, headerH/2, 'F');
 
-  doc.setFontSize(7.5); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-  doc.text(sl, CX + m, CY + 6);
-
-  doc.setFontSize(15); doc.setFont('helvetica','bold');
+  doc.setFontSize(15); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
   var firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
-  doc.text(firmaNr, CX + CW/2, CY + 12.5, {align:'center', maxWidth: CW - m*2});
+  doc.text(firmaNr, CX + CW/2, CY + 10.5, {align:'center', maxWidth: CW - m*2});
 
   var innerX = CX + m;
   var innerW = CW - m*2;
@@ -2448,7 +2556,7 @@ function drawQRCard(doc, r, qrDataUrl, imgDims) {
   var details = [
     (r.thickness||r.width||r.height) ? ['Wymiary', (r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm')] : null,
     r.type ? ['Typ', pl(r.type)] : null,
-    r.lighting ? ['Swiatlo', pl(r.lighting)] : null,
+    lightingStr(r) ? ['Swiatlo', pl(lightingStr(r))] : null,
     lightColorStr(r) ? ['Kolor', pl(lightColorStr(r))] : null,
     r.producer ? ['Producent', pl(r.producer)] : null,
     r.voltage ? ['Napiecie', r.voltage] : null,
@@ -2484,19 +2592,13 @@ function drawQRCard(doc, r, qrDataUrl, imgDims) {
 // Rysuje pełną kartę eksponatu (layout karty PDF) na bieżącej stronie
 function drawFullCard(doc, r, qrDataUrl, dimsCam, dimsScreen) {
   var W = 210, H = 297, m = 12;
-  var sc = pdfStatusColor(r);
-  var sl = pdfStatusLabel(r);
-
-  doc.setFillColor(sc[0],sc[1],sc[2]);
+  // Nagłówek neutralny — bez statusu i koloru (te są tylko w widoku strony)
+  doc.setFillColor(26,32,44);
   doc.rect(0, 0, W, 15, 'F');
-
-  doc.setFontSize(9); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
-  var slW = doc.getTextWidth(sl) + 2;
-  doc.text(sl, W-m, 10, {align:'right'});
 
   doc.setFontSize(16); doc.setTextColor(255,255,255); doc.setFont('helvetica','bold');
   var firmaNr = pl(r.company||'-') + (r.number ? '  #'+r.number : '');
-  doc.text(firmaNr, W/2, 10.5, {align:'center', maxWidth: W - m*2 - slW - 6});
+  doc.text(firmaNr, W/2, 10.5, {align:'center', maxWidth: W - m*2});
 
   doc.setFontSize(7); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
   doc.text(new Date().toLocaleDateString('pl-PL'), W-m, 22, {align:'right'});
@@ -2537,7 +2639,7 @@ function drawFullCard(doc, r, qrDataUrl, dimsCam, dimsScreen) {
   var fields = [
     ['Wymiary SxWxG', (r.thickness||r.width||r.height)?(r.width||'?')+'x'+(r.height||'?')+'x'+(r.thickness||'?')+' '+(r.dimUnit||'cm'):'-'],
     ['Typ', pl(r.type)||'-'],
-    ['Podswietlenie', pl(r.lighting)||'-'],
+    ['Podswietlenie', pl(lightingStr(r))||'-'],
     ['Kolor swiatla', pl(lightColorStr(r))||'-'],
     ['Montaz', pl(Array.isArray(r.mount)?r.mount.join(', '):r.mount)||'-'],
     ['Producent', pl(r.producer)||'-'],
@@ -2885,17 +2987,21 @@ function showToast(msg, type) {
 
 // ==================== PASTE SCREENSHOT ====================
 let pasteActive = false;
+let pasteTarget = 'screen';
 
-function activatePaste() {
+function activatePaste(type) {
+  type = type || 'screen';
+  pasteTarget = type;
   pasteActive = true;
-  const area = document.getElementById('paste-area-screen');
+  const area = document.getElementById('paste-area-' + type);
   if (area) {
     area.style.borderColor = '#3182ce';
     area.style.background = '#bee3f8';
-    area.querySelector('div:last-child').textContent = '⌨️ Teraz naciśnij Ctrl+V';
+    const hint = area.querySelector('.paste-hint') || area.querySelector('div:last-child');
+    if (hint) hint.textContent = '⌨️ Teraz naciśnij Ctrl+V';
     area.focus();
   }
-  showToast('Naciśnij Ctrl+V aby wkleić screen', '');
+  showToast('Naciśnij Ctrl+V aby wkleić zdjęcie', '');
   setTimeout(() => { pasteActive = false; }, 10000);
 }
 
@@ -2905,14 +3011,14 @@ document.addEventListener('paste', function(e) {
     if (item.type.indexOf('image') !== -1) {
       const file = item.getAsFile();
       if (file) {
-        handlePhoto({ files: [file] }, 'screen');
-        showToast('Wklejono print screen! ✅', 'success');
+        const target = pasteActive ? pasteTarget : 'screen';
+        handlePhoto({ files: [file] }, target);
+        showToast('Wklejono zdjęcie! ✅', 'success');
         pasteActive = false;
-        const area = document.getElementById('paste-area-screen');
-        if (area) {
-          area.style.borderColor = '#bee3f8';
-          area.style.background = '#ebf8ff';
-        }
+        ['screen','camera'].forEach(function(t){
+          const a = document.getElementById('paste-area-' + t);
+          if (a) { a.style.borderColor = '#bee3f8'; a.style.background = '#ebf8ff'; }
+        });
         e.preventDefault();
         return;
       }
