@@ -2750,13 +2750,12 @@ function drawFullCard(doc, r, qrDataUrl, dimsCam, dimsScreen) {
 // Układa "Mini QR" (QR 2cm + podpis nazwa/numer, obwódka 2mm) w siatce na A4
 function drawMiniQRGrid(doc, items) {
   var W = 210, H = 297;
-  var qr = 20;          // QR 2 cm
-  var capH = 6.5;       // podpis: 2 linie
+  var boxW = 40;        // etykieta 4 cm szerokości
   var pad = 2;          // obwódka odsunięta 2 mm od treści
+  var qr = boxW - pad*2; // QR wypełnia szerokość (36 mm)
+  var capH = 10;        // podpis: 2 linie
+  var boxH = pad + qr + capH + pad; // wysokość proporcjonalna do treści
   var gap = 4;          // odstęp między kafelkami
-  var contentH = qr + 1.5 + capH;
-  var boxW = qr + pad*2;
-  var boxH = contentH + pad*2;
   var marginX = 12, marginTop = 12, marginBottom = 12;
   var usableW = W - marginX*2;
   var cols = Math.max(1, Math.floor((usableW + gap) / (boxW + gap)));
@@ -2784,12 +2783,12 @@ function drawMiniQRGrid(doc, items) {
     doc.addImage(it.qr, 'PNG', qx, qy, qr, qr);
 
     // podpis: nazwa + numer
-    var capY = qy + qr + 3;
-    doc.setTextColor(26,32,44); doc.setFont('helvetica','bold'); doc.setFontSize(6);
-    doc.text(pl(it.name || '-'), bx + boxW/2, capY, {align:'center', maxWidth: boxW - 2});
+    var capY = qy + qr + 4;
+    doc.setTextColor(26,32,44); doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    doc.text(pl(it.name || '-'), bx + boxW/2, capY, {align:'center', maxWidth: boxW - 3});
     if (it.number !== '' && it.number != null) {
-      doc.setFont('helvetica','normal'); doc.setFontSize(6.5); doc.setTextColor(74,85,104);
-      doc.text('#'+it.number, bx + boxW/2, capY + 3.2, {align:'center', maxWidth: boxW - 2});
+      doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(74,85,104);
+      doc.text('#'+it.number, bx + boxW/2, capY + 4.5, {align:'center', maxWidth: boxW - 3});
     }
   });
 }
@@ -3075,6 +3074,26 @@ document.addEventListener('paste', function(e) {
 let scannerInstance = null;
 let scanBusy = false;
 
+// Krótkie pyknięcie po udanym skanie (Web Audio, bez plików dźwiękowych)
+let _beepCtx = null;
+function scanBeep() {
+  try {
+    if (!_beepCtx) _beepCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_beepCtx.state === 'suspended') _beepCtx.resume();
+    const t = _beepCtx.currentTime;
+    const o = _beepCtx.createOscillator();
+    const g = _beepCtx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1400, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.5, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    o.connect(g); g.connect(_beepCtx.destination);
+    o.start(t); o.stop(t + 0.15);
+    if (navigator.vibrate) navigator.vibrate(60);
+  } catch(e) {}
+}
+
 // --- Skanowanie seryjne: każdy skan od razu zmienia status i skanuje dalej ---
 let serialMode = false;
 let serialDone = [];
@@ -3167,6 +3186,7 @@ function showScanner() {
         document.getElementById('scan-result').textContent = 'Znaleziono: ' + id;
         // Seria: zmień status i skanuj dalej; normalnie: otwórz kartę
         const finishWith = (rec) => {
+          scanBeep();
           if (serialMode && !guestMode) {
             serialApplyStatus(rec);
           } else {
