@@ -177,6 +177,17 @@
     box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   }
   .card-selected .select-check { background: var(--blue); color: #fff; }
+  .select-qty {
+    position: absolute; top: 6px; left: 6px; z-index: 5;
+    display: flex; align-items: center; gap: 2px;
+    background: #fff; border: 2px solid var(--blue); border-radius: 15px;
+    padding: 1px 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+  .select-qty .qty-btn {
+    width: 24px; height: 24px; border: none; background: none; color: var(--blue);
+    font-weight: 800; font-size: 1.05rem; cursor: pointer; line-height: 1; padding: 0;
+  }
+  .select-qty .qty-num { min-width: 16px; text-align: center; font-weight: 800; color: var(--blue); font-size: 0.9rem; }
 
   /* Stopka kafelka: status zawsze wyśrodkowany, avatar i wykrzyknik pozycjonowane absolutnie */
   .footer-avatar { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 2; }
@@ -921,8 +932,8 @@
   <h1>ARCHIWUM <span>X</span></h1>
   <div class="header-btns" style="align-items:center;gap:6px">
     <button class="btn btn-ghost btn-sm no-print" id="btn-list" onclick="showView('list')">📋 Lista</button>
-    <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">📷 Skanuj QR</button>
-    <button class="btn btn-ghost btn-sm no-print" id="btn-qr-print" onclick="openQRMenu()" title="Drukuj wiele: karty / QR / Mini QR"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm11-2h2v2h-2v-2zm3 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3 0h2v2h-2v-2zm-3 3h2v2h-2v-2zm3 0h2v2h-2v-2z"/></svg> QR</button>
+    <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">Skanuj QR</button>
+    <button class="btn btn-ghost btn-sm no-print" id="btn-qr-print" onclick="openQRMenu()" title="Drukuj wiele: karty / QR / Mini QR">Drukuj</button>
     <button class="btn btn-primary btn-sm no-print" id="btn-new" onclick="showNewForm()">+ Nowy</button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-bell" onclick="showActivityLog()" title="Historia zmian" style="position:relative">🔔<span id="bell-badge"
       style="display:none;position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;border-radius:10px;font-size:0.6rem;font-weight:700;padding:1px 5px;min-width:16px;text-align:center">0</span></button>
@@ -1692,9 +1703,14 @@ function recordCardHTML(r) {
       ${warnBadge}
     </div>`;
   if (printSelectMode) {
-    const sel = selectedIds.has(r.id);
-    return `<div class="record-card ${cardBorder} ${sel ? 'card-selected' : ''}" data-id="${r.id}" onclick="toggleCardSelect('${r.id}')">
-    <div class="select-check">${sel ? '✓' : ''}</div>${inner}
+    const cnt = selectedCounts[r.id] || 0;
+    return `<div class="record-card ${cardBorder} ${cnt ? 'card-selected' : ''}" data-id="${r.id}" onclick="toggleCardSelect('${r.id}')">
+    <div class="select-check">${cnt ? '✓' : ''}</div>
+    <div class="select-qty" style="${cnt ? '' : 'display:none'}" title="Liczba kopii do druku">
+      <button type="button" class="qty-btn" onclick="event.stopPropagation();changeCopies('${r.id}',-1)">−</button>
+      <span class="qty-num">${cnt}</span>
+      <button type="button" class="qty-btn" onclick="event.stopPropagation();changeCopies('${r.id}',1)">+</button>
+    </div>${inner}
   </div>`;
   }
   return `<div class="record-card ${cardBorder}" data-id="${r.id}" onclick="showDetail('${r.id}')">${inner}
@@ -2825,7 +2841,13 @@ function exportCardPdf(mode) {
 // ==================== BATCH DRUK (wybór wielu kafelków) ====================
 var printSelectMode = false;
 var printMode = null;   // 'card' | 'qr' | 'mini'
-var selectedIds = new Set();
+var selectedCounts = {};  // id -> liczba kopii do druku
+
+function selectedTotal() {
+  var n = 0;
+  for (var k in selectedCounts) n += selectedCounts[k];
+  return n;
+}
 
 function openQRMenu() { document.getElementById('qrMenuModal').style.display = 'flex'; }
 function closeQRMenu() { document.getElementById('qrMenuModal').style.display = 'none'; }
@@ -2834,41 +2856,58 @@ function startPrintSelect(mode) {
   closeQRMenu();
   printMode = mode;
   printSelectMode = true;
-  selectedIds = new Set();
+  selectedCounts = {};
   showView('list');
   applyFilters();
   document.getElementById('print-select-bar').style.display = 'flex';
   updateSelectBar();
-  showToast('Zaznacz kafelki i kliknij „Drukuj”.', '');
+  showToast('Zaznacz kafelki (plusem zwiększysz liczbę kopii) i kliknij „Drukuj”.', '');
 }
 
 function cancelPrintSelect() {
   printSelectMode = false;
   printMode = null;
-  selectedIds = new Set();
+  selectedCounts = {};
   var bar = document.getElementById('print-select-bar');
   if (bar) bar.style.display = 'none';
   applyFilters();
 }
 
 function toggleCardSelect(id) {
-  if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
-  var card = document.querySelector('.record-card[data-id="'+id+'"]');
-  if (card) {
-    var on = selectedIds.has(id);
-    card.classList.toggle('card-selected', on);
-    var chk = card.querySelector('.select-check');
-    if (chk) chk.textContent = on ? '✓' : '';
-  }
+  if (selectedCounts[id]) delete selectedCounts[id]; else selectedCounts[id] = 1;
+  refreshCardSelect(id);
   updateSelectBar();
+}
+
+function changeCopies(id, delta) {
+  var n = (selectedCounts[id] || 0) + delta;
+  if (n <= 0) delete selectedCounts[id]; else selectedCounts[id] = Math.min(n, 99);
+  refreshCardSelect(id);
+  updateSelectBar();
+}
+
+function refreshCardSelect(id) {
+  var card = document.querySelector('.record-card[data-id="'+id+'"]');
+  if (!card) return;
+  var cnt = selectedCounts[id] || 0;
+  card.classList.toggle('card-selected', cnt > 0);
+  var chk = card.querySelector('.select-check');
+  if (chk) chk.textContent = cnt > 0 ? '✓' : '';
+  var qty = card.querySelector('.select-qty');
+  if (qty) {
+    qty.style.display = cnt > 0 ? 'flex' : 'none';
+    var num = qty.querySelector('.qty-num');
+    if (num) num.textContent = cnt;
+  }
 }
 
 function toggleSelectAll() {
   var cards = document.querySelectorAll('#records-container .record-card');
-  var allSelected = cards.length > 0 && Array.prototype.every.call(cards, function(c){ return selectedIds.has(c.getAttribute('data-id')); });
+  var allSelected = cards.length > 0 && Array.prototype.every.call(cards, function(c){ return selectedCounts[c.getAttribute('data-id')]; });
   cards.forEach(function(c){
     var id = c.getAttribute('data-id');
-    if (allSelected) selectedIds.delete(id); else selectedIds.add(id);
+    if (allSelected) delete selectedCounts[id];
+    else if (!selectedCounts[id]) selectedCounts[id] = 1;
   });
   applyFilters();
   updateSelectBar();
@@ -2877,7 +2916,7 @@ function toggleSelectAll() {
 function updateSelectBar() {
   var bar = document.getElementById('print-select-bar');
   if (!bar) return;
-  var n = selectedIds.size;
+  var n = selectedTotal();
   var modeLabel = printMode==='card' ? 'Karta PDF' : printMode==='qr' ? 'Eksport QR PDF' : 'Mini QR';
   document.getElementById('select-mode-label').textContent = modeLabel;
   document.getElementById('select-count').textContent = n;
@@ -2890,8 +2929,12 @@ function updateSelectBar() {
 }
 
 async function runBatchPrint() {
-  var ids = Array.from(selectedIds);
-  var recs = ids.map(function(id){ return records.find(function(r){ return r.id === id; }); }).filter(Boolean);
+  var recs = [];
+  for (var id in selectedCounts) {
+    var rec = records.find(function(r){ return r.id === id; });
+    if (!rec) continue;
+    for (var k = 0; k < selectedCounts[id]; k++) recs.push(rec);
+  }
   if (!recs.length) { showToast('Nie zaznaczono zadnego kafelka', 'error'); return; }
   var btn = document.getElementById('select-print-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Generowanie...'; }
