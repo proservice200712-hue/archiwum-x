@@ -219,6 +219,66 @@
     .group-body .records-grid { padding: 10px; }
   }
 
+  /* KATALOGI — kafelek-folder z efektem stosu kartek */
+  .catalog-card {
+    position: relative;
+    cursor: pointer;
+    margin: 0 7px 7px 0;
+  }
+  .catalog-card .cat-stack {
+    position: absolute;
+    left: 0; right: 0; top: 0; bottom: 0;
+    background: #fff;
+    border: 2.25px solid #cbd5e0;
+    border-radius: 0 12px 0 0;
+  }
+  .catalog-card .cat-stack.s1 { transform: translate(7px, 7px); }
+  .catalog-card .cat-stack.s2 { transform: translate(3.5px, 3.5px); }
+  .catalog-card .cat-face {
+    position: relative;
+    background: var(--white);
+    border: 2.25px solid #4a5568;
+    border-radius: 0 12px 0 0;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .catalog-card:hover .cat-face { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.15); }
+  .cat-head {
+    padding: 10px 12px 6px;
+    font-size: 0.9rem; font-weight: 800; line-height: 1.25;
+    text-align: center; color: #2d3748; background: #fff;
+    overflow-wrap: break-word;
+  }
+  .cat-icon { height: 160px; background: #f0f4f8; display: flex; align-items: center; justify-content: center; font-size: 3rem; }
+  .cat-body { padding: 10px 12px; flex: 1; border-top: 1px solid #edf2f7; background: #fff; font-size: 0.8rem; color: var(--gray); }
+  .cat-footer {
+    padding: 8px 12px; min-height: 42px;
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+    border-top: 1px solid #edf2f7; background: #fafafa;
+    font-size: 0.75rem; font-weight: 700; color: var(--gray);
+  }
+  /* Znacznik przynależności do katalogu na kafelku eksponatu */
+  .cat-hint {
+    position: absolute; top: 6px; left: 6px; z-index: 5;
+    background: #4a5568; color: #fff;
+    font-size: 0.62rem; font-weight: 700;
+    padding: 2px 7px; border-radius: 10px;
+    max-width: 78%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  #catalog-bar, #assign-bar {
+    display: none;
+    position: sticky; top: var(--header-h, 52px); z-index: 89;
+    background: #ebf8ff; border-bottom: 1px solid #bee3f8;
+    padding: 10px 20px; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  #catalog-bar { background: #f7fafc; border-bottom-color: #e2e8f0; }
+  #catalog-bar .cb-name { font-weight: 800; font-size: 0.95rem; color: var(--dark); }
+
   .record-card {
     background: var(--white);
     border-radius: 0 12px 0 0;
@@ -769,7 +829,8 @@
 
   /* PRINT */
   @media print {
-    header, .list-toolbar, .form-actions, .detail-actions, .no-print { display: none !important; }
+    header, .list-toolbar, .form-actions, .detail-actions, .no-print,
+    #catalog-bar, #assign-bar, #print-select-bar { display: none !important; }
     .print-only { display: block !important; }
     body { background: #fff; }
     .detail-container, .form-container { max-width: 100%; padding: 10px; }
@@ -1091,6 +1152,7 @@
       </select>
       <button class="btn btn-gray btn-sm" onclick="showCompanyManager()">🏢 Firmy</button>
       <button class="btn btn-gray btn-sm" onclick="showFairManager()">🎪 Targi</button>
+      <button class="btn btn-gray btn-sm" onclick="showCatalogManager()">📁 Katalogi</button>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%;margin-top:8px">
       <select class="filter-select" onchange="applyFilters()" id="filter-type" style="flex:1;min-width:140px">
@@ -1126,6 +1188,22 @@
     <span style="flex:1"></span>
     <button class="btn btn-success btn-sm" id="select-print-btn" onclick="runBatchPrint()">🖨️ Drukuj (0)</button>
     <button class="btn btn-danger btn-sm" onclick="cancelPrintSelect()">✕ Anuluj</button>
+  </div>
+  <div id="catalog-bar">
+    <button class="btn btn-gray btn-sm" onclick="exitCatalog()">← Wszystkie</button>
+    <span class="cb-name">📁 <span id="cat-bar-name">—</span></span>
+    <span class="psb-badge" id="cat-bar-count">0</span>
+    <span style="flex:1"></span>
+    <span id="cat-manage-btns" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="startManageCatalog()">✏️ Zawartość katalogu</button>
+    </span>
+  </div>
+  <div id="assign-bar">
+    <span class="psb-info">Zaznacz eksponaty należące do: <strong id="assign-cat-name">—</strong></span>
+    <span class="psb-info">Zaznaczono: <span class="psb-badge" id="assign-count">0</span></span>
+    <span style="flex:1"></span>
+    <button class="btn btn-success btn-sm" onclick="saveManageCatalog()">💾 Zapisz</button>
+    <button class="btn btn-danger btn-sm" onclick="cancelManageCatalog()">✕ Anuluj</button>
   </div>
   <div id="records-container">
     <div class="loader"><div class="spinner"></div>Ładowanie...</div>
@@ -1363,6 +1441,17 @@
       </div>
     </div>
 
+    <!-- KATALOG -->
+    <div class="form-section">
+      <div class="section-title">Katalog</div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Przypisz do katalogu</label>
+        <select id="f-catalog">
+          <option value="">— bez katalogu —</option>
+        </select>
+      </div>
+    </div>
+
     <!-- HISTORIA TARGÓW -->
     <div class="form-section">
       <div class="section-title">Historia targów</div>
@@ -1477,21 +1566,25 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="fairModal" style="display:none">
+<!-- CATALOG MANAGER MODAL -->
+<div class="modal-overlay" id="catalogModal" style="display:none">
   <div class="modal">
-    <h2>🎪 Zarządzanie targami</h2>
-    <p>Targi dostępne na liście wyboru przy tworzeniu eksponatu.</p>
+    <h2>📁 Zarządzanie katalogami</h2>
+    <p>Katalog to zbiór eksponatów. Na liście pokazuje się jako folder — kliknij, aby wejść do środka.</p>
     <div class="form-group">
-      <label>Dodaj nowe targi</label>
+      <label>Dodaj nowy katalog</label>
       <div style="display:flex; gap:8px">
-        <input type="text" id="new-fair-input" placeholder="Nazwa targów..." style="flex:1; margin-bottom:0"
-          onkeydown="if(event.key==='Enter') addFairFromManager()">
-        <button class="btn btn-primary" onclick="addFairFromManager()">Dodaj</button>
+        <input type="text" id="new-catalog-input" placeholder="Nazwa katalogu..." style="flex:1; margin-bottom:0"
+          onkeydown="if(event.key==='Enter') addCatalogFromManager()">
+        <button class="btn btn-primary" onclick="addCatalogFromManager()">Dodaj</button>
       </div>
     </div>
-    <div id="fairs-list" class="company-tags"></div>
+    <div id="catalogs-list" class="company-tags"></div>
+    <p style="font-size:0.78rem;color:var(--gray);margin-top:10px">
+      Usunięcie katalogu nie kasuje eksponatów — wracają na główną listę.
+    </p>
     <div style="margin-top:16px; text-align:right">
-      <button class="btn btn-gray" onclick="closeFairModal()">Zamknij</button>
+      <button class="btn btn-gray" onclick="closeCatalogModal()">Zamknij</button>
     </div>
   </div>
 </div>
@@ -1555,6 +1648,7 @@ function useDemoMode() {
   records = JSON.parse(localStorage.getItem('archivum_records') || '[]');
   companies = JSON.parse(localStorage.getItem('archivum_companies') || '["Przykładowa Firma","ACME Corp","XYZ Branding"]');
   fairNames = JSON.parse(localStorage.getItem('archivum_fairnames') || '[]');
+  loadCatalogNames();
   showToast('Tryb demo — dane zapisywane lokalnie', 'success');
   renderList();
   populateCompanySelect();
@@ -1566,6 +1660,7 @@ function loadAll() {
   // Userzy już załadowani przed logowaniem, nie ładuj ponownie
   loadCompanies();
   loadFairNames();
+  loadCatalogNames();
   loadRecords();
   loadActivity();
 }
@@ -1802,19 +1897,46 @@ function sortList(arr) {
 
 function renderList(filteredRecords) {
   if (!filteredRecords) populateFilterDropdowns();
-  const list = sortList(filteredRecords !== undefined ? filteredRecords : records.filter(r => r.status !== 'archiwum'));
+  let list = sortList(filteredRecords !== undefined ? filteredRecords : records.filter(r => r.status !== 'archiwum'));
   const container = document.getElementById('records-container');
-  if (list.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>Brak eksponatów. Kliknij <strong>+ Nowy</strong> aby dodać.</p></div>`;
-    return;
+  updateCatalogBar();
+
+  // Przy szukaniu, druku i zarządzaniu katalogiem foldery znikają — widać wszystkie pasujące eksponaty
+  const flat = manageMode || printSelectMode || filtersActive;
+  let html = '';
+
+  if (manageMode) {
+    html = `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>`;
+  } else if (currentCatalog) {
+    list = list.filter(r => (r.catalog || '') === currentCatalog);
+    if (list.length) html = recordsHTML(list);
+  } else {
+    if (!flat && catalogNames.length) {
+      const tiles = catalogNames.map(n =>
+        catalogTileHTML(n, records.filter(r => (r.catalog || '') === n && r.status !== 'archiwum')));
+      html += `<div class="records-grid">${tiles.join('')}</div>`;
+      // Eksponaty leżące w katalogach są schowane w folderach
+      list = list.filter(r => !(r.catalog && catalogNames.includes(r.catalog)));
+    }
+    if (list.length) html += recordsHTML(list);
   }
+
+  container.innerHTML = html || emptyStateHTML();
+}
+
+function emptyStateHTML() {
+  if (currentCatalog) {
+    return `<div class="empty-state"><div class="icon">📂</div><p>Katalog <strong>${currentCatalog}</strong> jest pusty.<br>
+      Kliknij <strong>✏️ Zawartość katalogu</strong>, aby dodać eksponaty.</p></div>`;
+  }
+  return `<div class="empty-state"><div class="icon">📦</div><p>Brak eksponatów. Kliknij <strong>+ Nowy</strong> aby dodać.</p></div>`;
+}
+
+// Kafelki eksponatów: płasko albo w zwijanych sekcjach, zależnie od wybranego grupowania
+function recordsHTML(list) {
   const groupEl = document.getElementById('filter-group');
   const groupMode = groupEl ? groupEl.value : '';
-  if (!groupMode) {
-    container.innerHTML = `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>`;
-    return;
-  }
-  // Grupowanie w sekcje — kolejność kafelków w sekcji zostaje z wybranego sortowania
+  if (!groupMode) return `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>`;
   const groups = new Map();
   list.forEach(r => {
     const k = groupKeyOf(r, groupMode);
@@ -1827,7 +1949,7 @@ function renderList(filteredRecords) {
     if (ea !== eb) return ea ? 1 : -1;
     return a.localeCompare(b, 'pl');
   });
-  container.innerHTML = keys.map(k => groupSectionHTML(k, groups.get(k), groupMode)).join('');
+  return keys.map(k => groupSectionHTML(k, groups.get(k), groupMode)).join('');
 }
 
 // ==================== GRUPOWANIE W SEKCJE ====================
@@ -1890,6 +2012,212 @@ function toggleGroup(headEl) {
   sec.classList.toggle('collapsed');
   if (sec.classList.contains('collapsed')) collapsedGroups.add(gid); else collapsedGroups.delete(gid);
   localStorage.setItem('archivum_collapsed', JSON.stringify([...collapsedGroups]));
+}
+
+// ==================== KATALOGI (foldery kafelków) ====================
+let catalogNames = [];
+let currentCatalog = null;   // otwarty katalog albo null = poziom główny
+let manageMode = false;      // tryb ustalania zawartości katalogu
+let manageSelected = {};
+let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ustępują wynikom
+
+function loadCatalogNames() {
+  if (demoMode) {
+    catalogNames = JSON.parse(localStorage.getItem('archivum_catalogs') || '[]');
+    populateCatalogSelect();
+    return;
+  }
+  db.collection('catalogs').orderBy('name').onSnapshot(snap => {
+    catalogNames = snap.docs.map(d => d.data().name);
+    populateCatalogSelect();
+    renderCatalogManager();
+    if (currentCatalog && !catalogNames.includes(currentCatalog)) currentCatalog = null;
+    if (!manageMode) applyFilters();
+  }, err => console.log('Catalogs load error:', err));
+}
+
+function populateCatalogSelect() {
+  const el = document.getElementById('f-catalog');
+  if (!el) return;
+  const cur = el.value;
+  el.innerHTML = '<option value="">— bez katalogu —</option>' +
+    catalogNames.map(n => `<option value="${n}" ${cur === n ? 'selected' : ''}>${n}</option>`).join('');
+}
+
+function showCatalogManager() {
+  renderCatalogManager();
+  document.getElementById('catalogModal').style.display = 'flex';
+}
+function closeCatalogModal() {
+  document.getElementById('catalogModal').style.display = 'none';
+}
+
+function renderCatalogManager() {
+  const el = document.getElementById('catalogs-list');
+  if (!el) return;
+  if (!catalogNames.length) {
+    el.innerHTML = '<em style="color:var(--gray);font-size:0.85rem">Brak katalogów</em>';
+    return;
+  }
+  el.innerHTML = '';
+  catalogNames.forEach(n => {
+    const cnt = records.filter(r => (r.catalog || '') === n).length;
+    const tag = document.createElement('div');
+    tag.className = 'company-tag';
+    tag.innerHTML = `${n} (${cnt}) <span class="del" onclick="removeCatalogName('${n.replace(/'/g,"\\'")}')">✕</span>`;
+    el.appendChild(tag);
+  });
+}
+
+function addCatalogFromManager() {
+  const name = document.getElementById('new-catalog-input').value.trim();
+  if (!name) return;
+  if (catalogNames.includes(name)) { showToast('Taki katalog już jest', 'error'); return; }
+  document.getElementById('new-catalog-input').value = '';
+  if (demoMode) {
+    catalogNames.push(name);
+    catalogNames.sort((a,b) => a.localeCompare(b,'pl'));
+    localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
+    populateCatalogSelect();
+    renderCatalogManager();
+    applyFilters();
+  } else {
+    db.collection('catalogs').add({ name, created: firebase.firestore.FieldValue.serverTimestamp() })
+      .catch(e => showToast('Błąd: ' + e.message, 'error'));
+  }
+  showToast('Katalog dodany! ✅', 'success');
+}
+
+function removeCatalogName(name) {
+  const inCat = records.filter(r => (r.catalog || '') === name);
+  if (!confirm('Usunąć katalog: ' + name + '?\n\nEksponaty (' + inCat.length + ') NIE zostaną usunięte — wrócą na główną listę.')) return;
+
+  const finish = () => {
+    inCat.forEach(r => r.catalog = '');
+    catalogNames = catalogNames.filter(n => n !== name);
+    if (currentCatalog === name) currentCatalog = null;
+    if (demoMode) {
+      localStorage.setItem('archivum_records', JSON.stringify(records));
+      localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
+    }
+    populateCatalogSelect();
+    renderCatalogManager();
+    applyFilters();
+    showToast('Katalog usunięty', 'success');
+  };
+
+  if (demoMode) { finish(); return; }
+  Promise.all(inCat.map(r => db.collection('records').doc(r.id).update({ catalog: '' })))
+    .then(() => db.collection('catalogs').where('name','==',name).get())
+    .then(snap => Promise.all(snap.docs.map(d => d.ref.delete())))
+    .then(finish)
+    .catch(e => showToast('Błąd usuwania: ' + e.message, 'error'));
+}
+
+function catalogTileHTML(name, items) {
+  const dots = STATUS_DEFS
+    .map(s => ({ s, n: items.filter(r => r.status === s.value).length }))
+    .filter(x => x.n > 0)
+    .map(x => `<span title="${x.s.label}">${x.s.icon} ${x.n}</span>`)
+    .join('');
+  const szt = items.length === 1 ? '1 eksponat' : items.length + ' szt.';
+  return `<div class="catalog-card" onclick="openCatalog('${name.replace(/'/g,"\\'")}')" title="Otwórz katalog">
+    <div class="cat-stack s1"></div>
+    <div class="cat-stack s2"></div>
+    <div class="cat-face">
+      <div class="cat-head">${name}</div>
+      <div class="cat-icon">📁</div>
+      <div class="cat-body">${szt}</div>
+      <div class="cat-footer">${dots || 'pusty'}</div>
+    </div>
+  </div>`;
+}
+
+function openCatalog(name) {
+  currentCatalog = name;
+  window.scrollTo(0, 0);
+  applyFilters();
+}
+
+function exitCatalog() {
+  currentCatalog = null;
+  manageMode = false;
+  manageSelected = {};
+  document.getElementById('assign-bar').style.display = 'none';
+  applyFilters();
+}
+
+function updateCatalogBar() {
+  const bar = document.getElementById('catalog-bar');
+  if (!bar) return;
+  if (!currentCatalog || manageMode) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  document.getElementById('cat-bar-name').textContent = currentCatalog;
+  document.getElementById('cat-bar-count').textContent =
+    records.filter(r => (r.catalog || '') === currentCatalog && r.status !== 'archiwum').length;
+}
+
+// Jeden tryb na dodawanie i usuwanie: zaznaczone = należy do katalogu
+function startManageCatalog() {
+  if (!currentCatalog) return;
+  manageMode = true;
+  manageSelected = {};
+  records.forEach(r => { if ((r.catalog || '') === currentCatalog) manageSelected[r.id] = true; });
+  document.getElementById('assign-bar').style.display = 'flex';
+  applyFilters();
+  updateAssignBar();
+  showToast('Zaznacz eksponaty, które mają być w katalogu, i kliknij „Zapisz”.', '');
+}
+
+function toggleManageSelect(id) {
+  if (manageSelected[id]) delete manageSelected[id]; else manageSelected[id] = true;
+  const card = document.querySelector('.record-card[data-id="' + id + '"]');
+  if (card) {
+    const on = !!manageSelected[id];
+    card.classList.toggle('card-selected', on);
+    const chk = card.querySelector('.select-check');
+    if (chk) chk.textContent = on ? '✓' : '';
+  }
+  updateAssignBar();
+}
+
+function updateAssignBar() {
+  document.getElementById('assign-cat-name').textContent = currentCatalog || '—';
+  document.getElementById('assign-count').textContent = Object.keys(manageSelected).length;
+}
+
+function cancelManageCatalog() {
+  manageMode = false;
+  manageSelected = {};
+  document.getElementById('assign-bar').style.display = 'none';
+  applyFilters();
+}
+
+function saveManageCatalog() {
+  const changes = [];
+  records.forEach(r => {
+    const should = !!manageSelected[r.id];
+    const isIn = (r.catalog || '') === currentCatalog;
+    if (should && !isIn) changes.push({ r, catalog: currentCatalog });
+    else if (!should && isIn) changes.push({ r, catalog: '' });
+  });
+  if (!changes.length) { cancelManageCatalog(); showToast('Nic się nie zmieniło', ''); return; }
+
+  const finish = () => {
+    changes.forEach(c => c.r.catalog = c.catalog);
+    if (demoMode) localStorage.setItem('archivum_records', JSON.stringify(records));
+    logActivity('zmienił(a) zawartość katalogu ' + currentCatalog, {});
+    manageMode = false;
+    manageSelected = {};
+    document.getElementById('assign-bar').style.display = 'none';
+    applyFilters();
+    showToast('Zapisano zmian: ' + changes.length + ' ✅', 'success');
+  };
+
+  if (demoMode) { finish(); return; }
+  Promise.all(changes.map(c => db.collection('records').doc(c.r.id).update({ catalog: c.catalog })))
+    .then(finish)
+    .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
 }
 
 // ==================== SZYBKA ZMIANA STATUSU Z KAFELKA ====================
@@ -1986,8 +2314,12 @@ function recordCardHTML(r) {
   const warnBadge = needsTemplate(r)
     ? `<div class="tile-warn" title="Uwaga: montaż wymaga przygotowania szablonu (dla snap-fix / dystansów) oraz przygotowania dystansów">!</div>`
     : '';
-  // Status klikalny tylko dla zalogowanych i poza trybem wyboru do druku
-  const quickStatus = !guestMode && !printSelectMode;
+  // Status klikalny tylko dla zalogowanych, poza trybem druku i zarządzania katalogiem
+  const quickStatus = !guestMode && !printSelectMode && !manageMode;
+  // Skąd jest eksponat — widoczne przy szukaniu i przy zarządzaniu zawartością katalogu
+  const catHint = (r.catalog && r.catalog !== currentCatalog)
+    ? `<div class="cat-hint" title="Katalog: ${r.catalog}">📁 ${r.catalog}</div>`
+    : '';
   const inner = `
     <div class="card-header ${statusClass}">${r.company || '—'}${nr}</div>
     ${imgHTML}
@@ -1999,6 +2331,12 @@ function recordCardHTML(r) {
       <span class="status-badge ${badgeClass}${quickStatus ? ' badge-clickable' : ''}" style="font-size:0.68rem;padding:3px 10px;margin-top:0"${quickStatus ? ` onclick="event.stopPropagation();openStatusMenu(event,'${r.id}')" title="Kliknij, aby zmienić status"` : ''}>${statusLabel}</span>
       ${warnBadge}
     </div>`;
+  if (manageMode) {
+    const on = !!manageSelected[r.id];
+    return `<div class="record-card ${cardBorder} ${on ? 'card-selected' : ''}" data-id="${r.id}" onclick="toggleManageSelect('${r.id}')">
+    <div class="select-check">${on ? '✓' : ''}</div>${catHint}${inner}
+  </div>`;
+  }
   if (printSelectMode) {
     const cnt = selectedCounts[r.id] || 0;
     return `<div class="record-card ${cardBorder} ${cnt ? 'card-selected' : ''}" data-id="${r.id}" onclick="toggleCardSelect('${r.id}')">
@@ -2010,7 +2348,7 @@ function recordCardHTML(r) {
     </div>${inner}
   </div>`;
   }
-  return `<div class="record-card ${cardBorder}" data-id="${r.id}" onclick="showDetail('${r.id}')">${inner}
+  return `<div class="record-card ${cardBorder}" data-id="${r.id}" onclick="showDetail('${r.id}')">${catHint}${inner}
   </div>`;
 }
 
@@ -2031,6 +2369,7 @@ function applyFilters() {
   const producer = document.getElementById('filter-producer').value;
 
   currentFilter = status;
+  filtersActive = !!(q || status || type || lightcolor || producer);
 
   const filtered = records.filter(r => {
     // Archiwum ukryte gdy nie wybrano jako filtr
@@ -2099,6 +2438,8 @@ function showNewForm() {
   selectedLightColors = [];
   document.getElementById('formTitle').textContent = 'Nowy eksponat';
   resetForm();
+  // Nowy eksponat tworzony wewnątrz katalogu od razu do niego trafia
+  if (currentCatalog) document.getElementById('f-catalog').value = currentCatalog;
   showView('form');
 }
 
@@ -2106,7 +2447,7 @@ function resetForm() {
   ['f-company','f-type-cat','f-type-sub','f-producer'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   ['f-company-other','f-type-other','f-lighting-other','f-lightcolor-other','f-notes','f-fair-name'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   ['f-thickness','f-width','f-height'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
-  ['f-status','f-lighting','f-lightcolor','f-voltage','f-cable'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  ['f-status','f-lighting','f-lightcolor','f-voltage','f-cable','f-catalog'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   document.getElementById('f-mount').value = '[]';
   const unitSel = document.getElementById('f-dim-unit');
   if (unitSel) { const du = defaultDimUnit(); unitSel.value = du; unitSel.dataset.prev = du; }
@@ -2371,8 +2712,8 @@ async function saveRecord() {
     cableLength: document.getElementById('f-cable').value,
     notes: document.getElementById('f-notes').value,
     fairHistory: fairHistory,
+    catalog: document.getElementById('f-catalog').value || '',
     updatedAt: new Date().toISOString(),
-    updatedBy: currentUser ? currentUser.login : 'NN',
     updatedBy: currentUser ? currentUser.login : 'NN',
   };
 
@@ -2521,6 +2862,9 @@ function editCurrentRecord() {
     document.getElementById('f-company-other').value = r.company || '';
     document.getElementById('other-company-wrap').classList.add('show');
   }
+
+  const catSel = document.getElementById('f-catalog');
+  if (catSel) catSel.value = catalogNames.includes(r.catalog) ? r.catalog : '';
 
   photoData = { camera: r.photoCamera || null, screen: r.photoScreen || null };
   if (r.photoCamera) document.getElementById('preview-camera').innerHTML = `<div class="photo-preview-item" style="height:90px;border-radius:8px;overflow:hidden;position:relative;background:#edf2f7;">
