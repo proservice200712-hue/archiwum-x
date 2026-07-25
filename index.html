@@ -1920,7 +1920,13 @@ function renderList(filteredRecords) {
   let html = '';
 
   if (manageMode) {
-    html = `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>`;
+    // Eksponaty leżące już w innym katalogu nie zaśmiecają wyboru — widać tylko wolne
+    // oraz te należące do katalogu, którego zawartość właśnie ustalamy
+    list = list.filter(r => {
+      const cat = (r.catalog && catalogNames.includes(r.catalog)) ? r.catalog : '';
+      return cat === '' || cat === currentCatalog;
+    });
+    html = list.length ? `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>` : '';
   } else if (currentCatalog) {
     list = list.filter(r => (r.catalog || '') === currentCatalog);
     if (list.length) html = recordsHTML(list);
@@ -1939,6 +1945,14 @@ function renderList(filteredRecords) {
 }
 
 function emptyStateHTML() {
+  if (groupNewMode) {
+    return `<div class="empty-state"><div class="icon">📁</div><p>Nie ma czego grupować — wszystkie eksponaty leżą już w katalogach.<br>
+      Aby przenieść coś do nowej grupy, najpierw wyjmij to z obecnego katalogu.</p></div>`;
+  }
+  if (manageMode) {
+    return `<div class="empty-state"><div class="icon">📁</div><p>Brak wolnych eksponatów do dodania.<br>
+      Pozostałe leżą w innych katalogach.</p></div>`;
+  }
   if (currentCatalog) {
     return `<div class="empty-state"><div class="icon">📂</div><p>Katalog <strong>${currentCatalog}</strong> jest pusty.<br>
       Kliknij <strong>✏️ Zawartość katalogu</strong>, aby dodać eksponaty.</p></div>`;
@@ -2290,7 +2304,7 @@ function startGroupNew() {
   groupNameTouched = false;
   applyFilters();
   updateAssignBar();
-  showToast('Zaznacz kafelki — nazwa ułoży się sama, możesz ją poprawić.', '');
+  showToast('Widać tylko eksponaty spoza katalogów. Zaznacz kafelki — nazwa ułoży się sama.', '');
 }
 
 function cancelGroupNew() {
