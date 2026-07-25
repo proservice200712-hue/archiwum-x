@@ -253,7 +253,8 @@
     text-align: center; color: #2d3748; background: #fff;
     overflow-wrap: break-word;
   }
-  .cat-icon { height: 160px; background: #f0f4f8; display: flex; align-items: center; justify-content: center; font-size: 3rem; }
+  .cat-icon { height: 160px; background: #f0f4f8; display: flex; align-items: center; justify-content: center; font-size: 3rem; overflow: hidden; }
+  .cat-icon img { width: 100%; height: 160px; object-fit: contain; background: #f0f4f8; }
   .cat-body { padding: 10px 12px; flex: 1; border-top: 1px solid #edf2f7; background: #fff; font-size: 0.8rem; color: var(--gray); }
   .cat-footer {
     padding: 8px 12px; min-height: 42px;
@@ -1200,6 +1201,7 @@
     <span style="flex:1"></span>
     <span id="cat-manage-btns" style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-gray btn-sm" onclick="renameCatalog(currentCatalog)" title="Zmień nazwę katalogu">✏️ Nazwa</button>
+      <button class="btn btn-gray btn-sm" onclick="showCatalogImageModal(currentCatalog)" title="Nadaj obrazek katalogowi">🖼️ Obrazek</button>
       <button class="btn btn-primary btn-sm" onclick="startManageCatalog()">📋 Zawartość katalogu</button>
     </span>
   </div>
@@ -1576,6 +1578,36 @@
     <div id="companies-list" class="company-tags"></div>
     <div style="margin-top:16px; text-align:right">
       <button class="btn btn-gray" onclick="closeCompanyModal()">Zamknij</button>
+    </div>
+  </div>
+</div>
+
+<!-- CATALOG IMAGE MODAL -->
+<div class="modal-overlay" id="catalogImageModal" style="display:none">
+  <div class="modal" style="max-width:420px">
+    <h2>🖼️ Obrazek katalogu</h2>
+    <p style="font-size:0.82rem;color:var(--gray);margin-bottom:12px">
+      Katalog: <strong id="catimg-name">—</strong>
+    </p>
+    <div id="catimg-preview" style="margin-bottom:12px"></div>
+    <div id="paste-area-catalog" tabindex="0"
+      style="border:2px dashed #bee3f8;background:#ebf8ff;border-radius:10px;padding:18px;text-align:center;cursor:pointer;outline:none"
+      onclick="activateCatalogPaste()">
+      <div style="font-size:1.6rem">📋</div>
+      <div class="paste-hint" style="font-size:0.82rem;color:var(--gray);margin-top:4px">Kliknij i wklej obrazek (Ctrl+V)</div>
+    </div>
+    <div style="margin-top:12px">
+      <label class="btn btn-gray btn-sm" style="display:inline-block;cursor:pointer">
+        📁 Wybierz plik
+        <input type="file" accept="image/*" style="display:none" onchange="handleCatalogImageInput(this)">
+      </label>
+      <button class="btn btn-danger btn-sm" onclick="clearCatalogImage()">🗑️ Usuń obrazek</button>
+    </div>
+    <p style="font-size:0.76rem;color:var(--gray);margin-top:12px">
+      Bez własnego obrazka folder pokazuje zdjęcie eksponatów, jeśli wszystkie w katalogu mają to samo.
+    </p>
+    <div style="margin-top:16px; text-align:right">
+      <button class="btn btn-gray" onclick="closeCatalogImageModal()">Zamknij</button>
     </div>
   </div>
 </div>
@@ -2044,6 +2076,8 @@ function toggleGroup(headEl) {
 
 // ==================== KATALOGI (foldery kafelków) ====================
 let catalogNames = [];
+let catalogMeta = {};        // nazwa katalogu -> { image } (obrazek nadany ręcznie)
+let catalogDocs = {};        // nazwa katalogu -> id dokumentu w bazie
 let currentCatalog = null;   // otwarty katalog albo null = poziom główny
 let manageMode = false;      // tryb ustalania zawartości katalogu
 let groupNewMode = false;    // „Grupuj" — tworzenie katalogu z zaznaczonych kafelków
@@ -2054,11 +2088,19 @@ let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ust
 function loadCatalogNames() {
   if (demoMode) {
     catalogNames = JSON.parse(localStorage.getItem('archivum_catalogs') || '[]');
+    catalogMeta = JSON.parse(localStorage.getItem('archivum_catalog_meta') || '{}');
     populateCatalogSelect();
     return;
   }
   db.collection('catalogs').orderBy('name').onSnapshot(snap => {
     catalogNames = snap.docs.map(d => d.data().name);
+    catalogMeta = {};
+    catalogDocs = {};
+    snap.docs.forEach(d => {
+      const c = d.data();
+      catalogDocs[c.name] = d.id;
+      if (c.image) catalogMeta[c.name] = { image: c.image };
+    });
     populateCatalogSelect();
     renderCatalogManager();
     if (currentCatalog && !catalogNames.includes(currentCatalog)) currentCatalog = null;
@@ -2128,10 +2170,13 @@ function removeCatalogName(name) {
   const finish = () => {
     inCat.forEach(r => r.catalog = '');
     catalogNames = catalogNames.filter(n => n !== name);
+    delete catalogMeta[name];
+    delete catalogDocs[name];
     if (currentCatalog === name) currentCatalog = null;
     if (demoMode) {
       localStorage.setItem('archivum_records', JSON.stringify(records));
       localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
+      localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
     }
     populateCatalogSelect();
     renderCatalogManager();
@@ -2145,6 +2190,108 @@ function removeCatalogName(name) {
     .then(snap => Promise.all(snap.docs.map(d => d.ref.delete())))
     .then(finish)
     .catch(e => showToast('Błąd usuwania: ' + e.message, 'error'));
+}
+
+// ---- Obrazek katalogu: wklejenie lub plik, zapis do bazy ----
+let catalogImageTarget = null;
+let catalogPasteActive = false;
+
+function showCatalogImageModal(name) {
+  if (!name) return;
+  catalogImageTarget = name;
+  document.getElementById('catimg-name').textContent = name;
+  renderCatalogImagePreview();
+  document.getElementById('catalogImageModal').style.display = 'flex';
+}
+
+function closeCatalogImageModal() {
+  document.getElementById('catalogImageModal').style.display = 'none';
+  catalogPasteActive = false;
+  catalogImageTarget = null;
+}
+
+function renderCatalogImagePreview(tempUrl, label) {
+  const el = document.getElementById('catimg-preview');
+  if (!el) return;
+  const items = records.filter(r => (r.catalog || '') === catalogImageTarget);
+  const manual = catalogMeta[catalogImageTarget] && catalogMeta[catalogImageTarget].image;
+  const auto = catalogAutoImage(items);
+  const src = tempUrl || manual || auto;
+  if (!src) {
+    el.innerHTML = `<div style="height:120px;border-radius:8px;background:#f0f4f8;display:flex;align-items:center;justify-content:center;font-size:2.4rem">📁</div>
+      <div style="font-size:0.76rem;color:var(--gray);text-align:center;margin-top:6px">Brak obrazka — eksponaty mają różne zdjęcia</div>`;
+    return;
+  }
+  const note = tempUrl ? (label || 'Wgrywanie...') : (manual ? 'Obrazek własny' : 'Automatyczny — wspólne zdjęcie eksponatów');
+  el.innerHTML = `<div style="height:120px;border-radius:8px;overflow:hidden;background:#f0f4f8">
+      <img src="${src}" alt="podgląd" style="width:100%;height:120px;object-fit:contain">
+    </div>
+    <div style="font-size:0.76rem;color:var(--gray);text-align:center;margin-top:6px">${note}</div>`;
+}
+
+function activateCatalogPaste() {
+  catalogPasteActive = true;
+  const area = document.getElementById('paste-area-catalog');
+  if (area) {
+    area.style.borderColor = '#3182ce';
+    area.style.background = '#bee3f8';
+    const hint = area.querySelector('.paste-hint');
+    if (hint) hint.textContent = '⌨️ Teraz naciśnij Ctrl+V';
+    area.focus();
+  }
+  showToast('Naciśnij Ctrl+V aby wkleić obrazek', '');
+  setTimeout(() => { catalogPasteActive = false; }, 15000);
+}
+
+function handleCatalogImageInput(input) {
+  const file = input.files[0];
+  if (file) handleCatalogImageFile(file);
+  input.value = '';
+}
+
+function handleCatalogImageFile(file) {
+  if (!catalogImageTarget) return;
+  const name = catalogImageTarget;
+
+  const reader = new FileReader();
+  reader.onload = e => renderCatalogImagePreview(e.target.result, 'Wgrywanie...');
+  reader.readAsDataURL(file);
+
+  showToast('Wgrywanie obrazka...', '');
+  uploadToCloudinary(file)
+    .then(url => saveCatalogImage(name, url))
+    .catch(() => {
+      // Bez Cloudinary zapisz obrazek lokalnie w bazie
+      const r2 = new FileReader();
+      r2.onload = e => saveCatalogImage(name, e.target.result);
+      r2.readAsDataURL(file);
+    });
+}
+
+function saveCatalogImage(name, url) {
+  const finish = () => {
+    if (url) catalogMeta[name] = { image: url };
+    else delete catalogMeta[name];
+    if (demoMode) localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
+    if (catalogImageTarget === name) renderCatalogImagePreview();
+    applyFilters();
+    showToast(url ? 'Obrazek zapisany ✅' : 'Obrazek usunięty', 'success');
+  };
+  if (demoMode) { finish(); return; }
+  const docId = catalogDocs[name];
+  if (!docId) { showToast('Nie znaleziono katalogu w bazie', 'error'); return; }
+  db.collection('catalogs').doc(docId).update({ image: url || '' })
+    .then(finish)
+    .catch(e => showToast('Błąd zapisu obrazka: ' + e.message, 'error'));
+}
+
+function clearCatalogImage() {
+  if (!catalogImageTarget) return;
+  if (!(catalogMeta[catalogImageTarget] && catalogMeta[catalogImageTarget].image)) {
+    showToast('Ten katalog nie ma własnego obrazka', '');
+    return;
+  }
+  saveCatalogImage(catalogImageTarget, '');
 }
 
 function renameCatalog(oldName) {
@@ -2162,10 +2309,13 @@ function renameCatalog(oldName) {
     catalogNames = catalogNames.filter(n => n !== oldName);
     catalogNames.push(name);
     catalogNames.sort((a, b) => a.localeCompare(b, 'pl'));
+    if (catalogMeta[oldName]) { catalogMeta[name] = catalogMeta[oldName]; delete catalogMeta[oldName]; }
+    if (catalogDocs[oldName]) { catalogDocs[name] = catalogDocs[oldName]; delete catalogDocs[oldName]; }
     if (currentCatalog === oldName) currentCatalog = name;
     if (demoMode) {
       localStorage.setItem('archivum_records', JSON.stringify(records));
       localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
+      localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
     }
     logActivity('zmienił(a) nazwę katalogu ' + oldName + ' na ' + name, {});
     populateCatalogSelect();
@@ -2182,6 +2332,24 @@ function renameCatalog(oldName) {
     .catch(e => showToast('Błąd zmiany nazwy: ' + e.message, 'error'));
 }
 
+function photoOfRecord(r) {
+  return r.photoCamera || r.photoScreen || null;
+}
+
+// Gdy wszystkie eksponaty w katalogu mają to samo zdjęcie, folder bierze je automatycznie
+function catalogAutoImage(items) {
+  if (!items.length) return null;
+  const first = photoOfRecord(items[0]);
+  if (!first) return null;
+  return items.every(r => photoOfRecord(r) === first) ? first : null;
+}
+
+// Obrazek nadany ręcznie ma pierwszeństwo przed automatycznym
+function catalogImageFor(name, items) {
+  const manual = catalogMeta[name] && catalogMeta[name].image;
+  return manual || catalogAutoImage(items);
+}
+
 function catalogTileHTML(name, items) {
   const dots = STATUS_DEFS
     .map(s => ({ s, n: items.filter(r => r.status === s.value).length }))
@@ -2189,12 +2357,16 @@ function catalogTileHTML(name, items) {
     .map(x => `<span title="${x.s.label}">${x.s.icon} ${x.n}</span>`)
     .join('');
   const szt = items.length === 1 ? '1 eksponat' : items.length + ' szt.';
+  const img = catalogImageFor(name, items);
+  const iconHTML = img
+    ? `<div class="cat-icon"><img src="${img}" alt="obrazek katalogu"></div>`
+    : `<div class="cat-icon">📁</div>`;
   return `<div class="catalog-card" onclick="openCatalog('${name.replace(/'/g,"\\'")}')" title="Otwórz katalog">
     <div class="cat-stack s1"></div>
     <div class="cat-stack s2"></div>
     <div class="cat-face">
       <div class="cat-head">${name}</div>
-      <div class="cat-icon">📁</div>
+      ${iconHTML}
       <div class="cat-body">${szt}</div>
       <div class="cat-footer">${dots || 'pusty'}</div>
     </div>
@@ -3912,6 +4084,15 @@ document.addEventListener('paste', function(e) {
     if (item.type.indexOf('image') !== -1) {
       const file = item.getAsFile();
       if (file) {
+        // Wklejanie obrazka katalogu ma pierwszeństwo, gdy otwarte jest jego okno
+        if (catalogPasteActive) {
+          handleCatalogImageFile(file);
+          catalogPasteActive = false;
+          const area = document.getElementById('paste-area-catalog');
+          if (area) { area.style.borderColor = '#bee3f8'; area.style.background = '#ebf8ff'; }
+          e.preventDefault();
+          return;
+        }
         const target = pasteActive ? pasteTarget : 'screen';
         handlePhoto({ files: [file] }, target);
         showToast('Wklejono zdjęcie! ✅', 'success');
