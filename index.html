@@ -261,16 +261,19 @@
     border-top: 1px solid #edf2f7; background: #fafafa;
     font-size: 0.75rem; font-weight: 700; color: var(--gray);
   }
-  /* Znacznik przynależności do katalogu na kafelku eksponatu */
+  /* Znacznik przynależności do katalogu — w treści kafelka, żeby nie zasłaniał nazwy firmy */
   .cat-hint {
-    position: absolute; top: 6px; left: 6px; z-index: 5;
-    background: #4a5568; color: #fff;
-    font-size: 0.62rem; font-weight: 700;
-    padding: 2px 7px; border-radius: 10px;
-    max-width: 78%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: inline-block;
+    max-width: 100%;
+    margin-bottom: 6px;
+    background: #edf2f7; color: #4a5568;
+    font-size: 0.66rem; font-weight: 700;
+    padding: 2px 8px; border-radius: 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    vertical-align: bottom;
   }
 
-  #catalog-bar, #assign-bar {
+  #catalog-bar, #assign-bar, #group-bar {
     display: none;
     position: sticky; top: var(--header-h, 52px); z-index: 89;
     background: #ebf8ff; border-bottom: 1px solid #bee3f8;
@@ -830,7 +833,7 @@
   /* PRINT */
   @media print {
     header, .list-toolbar, .form-actions, .detail-actions, .no-print,
-    #catalog-bar, #assign-bar, #print-select-bar { display: none !important; }
+    #catalog-bar, #assign-bar, #group-bar, #print-select-bar { display: none !important; }
     .print-only { display: block !important; }
     body { background: #fff; }
     .detail-container, .form-container { max-width: 100%; padding: 10px; }
@@ -1125,6 +1128,7 @@
     <button class="btn btn-ghost btn-sm no-print" id="btn-list" onclick="showView('list')">📋 Lista</button>
     <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">Skanuj QR</button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-qr-print" onclick="openQRMenu()" title="Drukuj wiele: karty / QR / Mini QR">Drukuj</button>
+    <button class="btn btn-ghost btn-sm no-print" id="btn-group" onclick="startGroupNew()" title="Zaznacz kafelki i połącz je w katalog">Grupuj</button>
     <button class="btn btn-primary btn-sm no-print" id="btn-new" onclick="showNewForm()">+ Nowy</button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-bell" onclick="showActivityLog()" title="Historia zmian" style="position:relative">🔔<span id="bell-badge"
       style="display:none;position:absolute;top:-5px;right:-5px;background:var(--red);color:#fff;border-radius:10px;font-size:0.6rem;font-weight:700;padding:1px 5px;min-width:16px;text-align:center">0</span></button>
@@ -1170,13 +1174,13 @@
         <option value="number-asc">🔢 Numer rosnąco</option>
         <option value="number-desc">🔢 Numer malejąco</option>
       </select>
-      <select class="filter-select" onchange="onGroupChange()" id="filter-group" style="flex:1;min-width:140px" title="Grupowanie w sekcje">
-        <option value="">Bez grupowania</option>
-        <option value="fair">📁 Grupuj: targi</option>
-        <option value="company">📁 Grupuj: firma</option>
-        <option value="status">📁 Grupuj: status</option>
-        <option value="type">📁 Grupuj: typ</option>
-        <option value="producer">📁 Grupuj: producent</option>
+      <select class="filter-select" onchange="onGroupChange()" id="filter-group" style="flex:1;min-width:140px" title="Dzieli widok na zwijane sekcje">
+        <option value="">Bez sekcji</option>
+        <option value="fair">▤ Sekcje: targi</option>
+        <option value="company">▤ Sekcje: firma</option>
+        <option value="status">▤ Sekcje: status</option>
+        <option value="type">▤ Sekcje: typ</option>
+        <option value="producer">▤ Sekcje: producent</option>
       </select>
       <button class="btn btn-gray btn-sm" onclick="clearFilters()" title="Wyczyść filtry">✕ Wyczyść</button>
     </div>
@@ -1197,6 +1201,13 @@
     <span id="cat-manage-btns" style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" onclick="startManageCatalog()">✏️ Zawartość katalogu</button>
     </span>
+  </div>
+  <div id="group-bar">
+    <span class="psb-info">Zaznacz kafelki: <span class="psb-badge" id="group-count">0</span></span>
+    <input type="text" id="group-name-input" class="search-box" placeholder="Wspólna nazwa katalogu..."
+      style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter') saveGroupNew()">
+    <button class="btn btn-success btn-sm" onclick="saveGroupNew()">✓ Utwórz katalog</button>
+    <button class="btn btn-danger btn-sm" onclick="cancelGroupNew()">✕ Anuluj</button>
   </div>
   <div id="assign-bar">
     <span class="psb-info">Zaznacz eksponaty należące do: <strong id="assign-cat-name">—</strong></span>
@@ -2018,6 +2029,7 @@ function toggleGroup(headEl) {
 let catalogNames = [];
 let currentCatalog = null;   // otwarty katalog albo null = poziom główny
 let manageMode = false;      // tryb ustalania zawartości katalogu
+let groupNewMode = false;    // „Grupuj" — tworzenie katalogu z zaznaczonych kafelków
 let manageSelected = {};
 let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ustępują wynikom
 
@@ -2142,8 +2154,10 @@ function openCatalog(name) {
 function exitCatalog() {
   currentCatalog = null;
   manageMode = false;
+  groupNewMode = false;
   manageSelected = {};
   document.getElementById('assign-bar').style.display = 'none';
+  document.getElementById('group-bar').style.display = 'none';
   applyFilters();
 }
 
@@ -2182,8 +2196,78 @@ function toggleManageSelect(id) {
 }
 
 function updateAssignBar() {
+  const n = Object.keys(manageSelected).length;
+  if (groupNewMode) {
+    document.getElementById('group-count').textContent = n;
+    return;
+  }
   document.getElementById('assign-cat-name').textContent = currentCatalog || '—';
-  document.getElementById('assign-count').textContent = Object.keys(manageSelected).length;
+  document.getElementById('assign-count').textContent = n;
+}
+
+// „Grupuj" z menu: zaznacz kafelki, nadaj wspólną nazwę, zatwierdź
+function startGroupNew() {
+  if (guestMode) return;
+  showView('list');
+  currentCatalog = null;
+  manageMode = true;
+  groupNewMode = true;
+  manageSelected = {};
+  document.getElementById('assign-bar').style.display = 'none';
+  document.getElementById('group-bar').style.display = 'flex';
+  document.getElementById('group-name-input').value = '';
+  applyFilters();
+  updateAssignBar();
+  showToast('Zaznacz kafelki, wpisz wspólną nazwę i zatwierdź.', '');
+}
+
+function cancelGroupNew() {
+  manageMode = false;
+  groupNewMode = false;
+  manageSelected = {};
+  document.getElementById('group-bar').style.display = 'none';
+  applyFilters();
+}
+
+function saveGroupNew() {
+  const ids = Object.keys(manageSelected);
+  if (!ids.length) { showToast('Nie zaznaczono żadnego kafelka', 'error'); return; }
+  const input = document.getElementById('group-name-input');
+  const name = input.value.trim();
+  if (!name) { showToast('Podaj wspólną nazwę katalogu', 'error'); input.focus(); return; }
+
+  const existed = catalogNames.includes(name);
+  const targets = records.filter(r => manageSelected[r.id] && (r.catalog || '') !== name);
+
+  const finish = () => {
+    targets.forEach(r => r.catalog = name);
+    if (!catalogNames.includes(name)) {
+      catalogNames.push(name);
+      catalogNames.sort((a, b) => a.localeCompare(b, 'pl'));
+    }
+    if (demoMode) {
+      localStorage.setItem('archivum_records', JSON.stringify(records));
+      localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
+    }
+    logActivity('zgrupował(a) ' + ids.length + ' eksponatów w katalogu ' + name, {});
+    populateCatalogSelect();
+    renderCatalogManager();
+    manageMode = false;
+    groupNewMode = false;
+    manageSelected = {};
+    document.getElementById('group-bar').style.display = 'none';
+    openCatalog(name);
+    showToast((existed ? 'Dodano do katalogu: ' : 'Katalog utworzony: ') + name + ' (' + ids.length + ') ✅', 'success');
+  };
+
+  if (demoMode) { finish(); return; }
+  const catReady = existed
+    ? Promise.resolve()
+    : db.collection('catalogs').add({ name, created: firebase.firestore.FieldValue.serverTimestamp() });
+  catReady
+    .then(() => Promise.all(targets.map(r => db.collection('records').doc(r.id).update({ catalog: name }))))
+    .then(finish)
+    .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
 }
 
 function cancelManageCatalog() {
@@ -2324,6 +2408,7 @@ function recordCardHTML(r) {
     <div class="card-header ${statusClass}">${r.company || '—'}${nr}</div>
     ${imgHTML}
     <div class="card-body">
+      ${catHint}
       <div class="card-meta">${metaLines}</div>
     </div>
     <div class="card-footer">
@@ -2334,7 +2419,7 @@ function recordCardHTML(r) {
   if (manageMode) {
     const on = !!manageSelected[r.id];
     return `<div class="record-card ${cardBorder} ${on ? 'card-selected' : ''}" data-id="${r.id}" onclick="toggleManageSelect('${r.id}')">
-    <div class="select-check">${on ? '✓' : ''}</div>${catHint}${inner}
+    <div class="select-check">${on ? '✓' : ''}</div>${inner}
   </div>`;
   }
   if (printSelectMode) {
@@ -2348,7 +2433,7 @@ function recordCardHTML(r) {
     </div>${inner}
   </div>`;
   }
-  return `<div class="record-card ${cardBorder}" data-id="${r.id}" onclick="showDetail('${r.id}')">${catHint}${inner}
+  return `<div class="record-card ${cardBorder}" data-id="${r.id}" onclick="showDetail('${r.id}')">${inner}
   </div>`;
 }
 
@@ -4031,7 +4116,7 @@ let guestMode = false;
 
 function setGuestUI(on) {
   // W trybie gościa ukryj wszystko poza skanowaniem
-  ['btn-list','btn-new','btn-bell','btn-qr-print'].forEach(id => {
+  ['btn-list','btn-new','btn-bell','btn-qr-print','btn-group'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = on ? 'none' : '';
   });
