@@ -182,6 +182,43 @@
     gap: 14px;
   }
 
+  /* SEKCJE (grupowanie kafelków) */
+  .group-section {
+    margin: 0 20px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .group-section:first-child { margin-top: 16px; }
+  .group-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    background: #f7fafc;
+    border-bottom: 1px solid #e2e8f0;
+    cursor: pointer;
+    user-select: none;
+  }
+  .group-head:hover { background: #edf2f7; }
+  .grp-arrow { color: var(--gray); font-size: 0.75rem; transform: rotate(90deg); transition: transform .15s; }
+  .grp-name { font-weight: 800; font-size: 0.92rem; color: var(--dark); overflow-wrap: anywhere; }
+  .grp-count { background: var(--blue); color: #fff; border-radius: 10px; font-size: 0.7rem; font-weight: 800; padding: 1px 9px; flex-shrink: 0; }
+  .grp-summary { margin-left: auto; display: flex; gap: 9px; font-size: 0.75rem; font-weight: 700; color: var(--gray); flex-shrink: 0; }
+  .group-body .records-grid { padding: 12px; }
+  .group-section.collapsed .grp-arrow { transform: rotate(0deg); }
+  .group-section.collapsed .group-head { border-bottom: none; }
+  .group-section.collapsed .group-body { display: none; }
+  @media (max-width: 600px) {
+    .group-section { margin: 0 10px 10px; }
+    .group-section:first-child { margin-top: 10px; }
+    .group-head { padding: 9px 10px; gap: 7px; }
+    .grp-name { font-size: 0.82rem; }
+    .grp-summary { gap: 6px; font-size: 0.7rem; }
+    .group-body .records-grid { padding: 10px; }
+  }
+
   .record-card {
     background: var(--white);
     border-radius: 0 12px 0 0;
@@ -1071,6 +1108,14 @@
         <option value="number-asc">🔢 Numer rosnąco</option>
         <option value="number-desc">🔢 Numer malejąco</option>
       </select>
+      <select class="filter-select" onchange="onGroupChange()" id="filter-group" style="flex:1;min-width:140px" title="Grupowanie w sekcje">
+        <option value="">Bez grupowania</option>
+        <option value="fair">📁 Grupuj: targi</option>
+        <option value="company">📁 Grupuj: firma</option>
+        <option value="status">📁 Grupuj: status</option>
+        <option value="type">📁 Grupuj: typ</option>
+        <option value="producer">📁 Grupuj: producent</option>
+      </select>
       <button class="btn btn-gray btn-sm" onclick="clearFilters()" title="Wyczyść filtry">✕ Wyczyść</button>
     </div>
   </div>
@@ -1763,7 +1808,88 @@ function renderList(filteredRecords) {
     container.innerHTML = `<div class="empty-state"><div class="icon">📦</div><p>Brak eksponatów. Kliknij <strong>+ Nowy</strong> aby dodać.</p></div>`;
     return;
   }
-  container.innerHTML = `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>`;
+  const groupEl = document.getElementById('filter-group');
+  const groupMode = groupEl ? groupEl.value : '';
+  if (!groupMode) {
+    container.innerHTML = `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>`;
+    return;
+  }
+  // Grupowanie w sekcje — kolejność kafelków w sekcji zostaje z wybranego sortowania
+  const groups = new Map();
+  list.forEach(r => {
+    const k = groupKeyOf(r, groupMode);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  });
+  const keys = [...groups.keys()].sort((a, b) => {
+    // Grupy "Bez ..." zawsze na końcu
+    const ea = a.startsWith('Bez '), eb = b.startsWith('Bez ');
+    if (ea !== eb) return ea ? 1 : -1;
+    return a.localeCompare(b, 'pl');
+  });
+  container.innerHTML = keys.map(k => groupSectionHTML(k, groups.get(k), groupMode)).join('');
+}
+
+// ==================== GRUPOWANIE W SEKCJE ====================
+let collapsedGroups = new Set(JSON.parse(localStorage.getItem('archivum_collapsed') || '[]'));
+
+function groupKeyOf(r, mode) {
+  if (mode === 'company')  return r.company  || 'Bez firmy';
+  if (mode === 'type')     return r.type     || 'Bez typu';
+  if (mode === 'producer') return r.producer || 'Bez producenta';
+  if (mode === 'status') {
+    const d = STATUS_DEFS.find(s => s.value === r.status);
+    return d ? d.label : 'Bez statusu';
+  }
+  if (mode === 'fair') {
+    const h = r.fairHistory;
+    return (h && h.length && h[h.length - 1].text) ? h[h.length - 1].text : 'Bez targów';
+  }
+  return '';
+}
+
+function groupId(mode, key) {
+  return 'g_' + mode + '_' + key.replace(/[^0-9a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]+/g, '_');
+}
+
+function groupSectionHTML(key, items, mode) {
+  const gid = groupId(mode, key);
+  const collapsed = collapsedGroups.has(gid);
+  const summary = STATUS_DEFS
+    .map(s => ({ s, n: items.filter(r => r.status === s.value).length }))
+    .filter(x => x.n > 0)
+    .map(x => `<span title="${x.s.label}">${x.s.icon} ${x.n}</span>`)
+    .join('');
+  return `<section class="group-section${collapsed ? ' collapsed' : ''}" data-gid="${gid}">
+    <div class="group-head" onclick="toggleGroup(this)" title="Kliknij, aby zwinąć lub rozwinąć">
+      <span class="grp-arrow">▶</span>
+      <span class="grp-name">${key}</span>
+      <span class="grp-count">${items.length}</span>
+      <span class="grp-summary">${summary}</span>
+    </div>
+    <div class="group-body"><div class="records-grid">${items.map(r => recordCardHTML(r)).join('')}</div></div>
+  </section>`;
+}
+
+// Wybór grupowania zostaje zapamiętany między sesjami
+function onGroupChange() {
+  localStorage.setItem('archivum_group', document.getElementById('filter-group').value);
+  applyFilters();
+}
+
+function restoreGroupChoice() {
+  const saved = localStorage.getItem('archivum_group');
+  const el = document.getElementById('filter-group');
+  if (el && saved) el.value = saved;
+}
+restoreGroupChoice();
+
+function toggleGroup(headEl) {
+  const sec = headEl.closest('.group-section');
+  const gid = sec.dataset.gid;
+  sec.classList.toggle('collapsed');
+  if (sec.classList.contains('collapsed')) collapsedGroups.add(gid); else collapsedGroups.delete(gid);
+  localStorage.setItem('archivum_collapsed', JSON.stringify([...collapsedGroups]));
 }
 
 // ==================== SZYBKA ZMIANA STATUSU Z KAFELKA ====================
@@ -1930,6 +2056,8 @@ function clearFilters() {
   document.getElementById('filter-lightcolor').value = '';
   document.getElementById('filter-producer').value = '';
   document.getElementById('filter-sort').value = '';
+  document.getElementById('filter-group').value = '';
+  localStorage.setItem('archivum_group', '');
   currentFilter = '';
   renderList();
 }
