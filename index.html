@@ -1199,13 +1199,16 @@
     <span class="psb-badge" id="cat-bar-count">0</span>
     <span style="flex:1"></span>
     <span id="cat-manage-btns" style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" onclick="startManageCatalog()">✏️ Zawartość katalogu</button>
+      <button class="btn btn-gray btn-sm" onclick="renameCatalog(currentCatalog)" title="Zmień nazwę katalogu">✏️ Nazwa</button>
+      <button class="btn btn-primary btn-sm" onclick="startManageCatalog()">📋 Zawartość katalogu</button>
     </span>
   </div>
   <div id="group-bar">
     <span class="psb-info">Zaznacz kafelki: <span class="psb-badge" id="group-count">0</span></span>
-    <input type="text" id="group-name-input" class="search-box" placeholder="Wspólna nazwa katalogu..."
-      style="flex:1;min-width:160px" onkeydown="if(event.key==='Enter') saveGroupNew()">
+    <input type="text" id="group-name-input" class="search-box" placeholder="Nazwa powstanie automatycznie..."
+      style="flex:1;min-width:160px" oninput="groupNameTouched = true"
+      onkeydown="if(event.key==='Enter') saveGroupNew()">
+    <button class="btn btn-gray btn-sm" onclick="regenGroupName()" title="Wróć do nazwy automatycznej">↻</button>
     <button class="btn btn-success btn-sm" onclick="saveGroupNew()">✓ Utwórz katalog</button>
     <button class="btn btn-danger btn-sm" onclick="cancelGroupNew()">✕ Anuluj</button>
   </div>
@@ -2030,6 +2033,7 @@ let catalogNames = [];
 let currentCatalog = null;   // otwarty katalog albo null = poziom główny
 let manageMode = false;      // tryb ustalania zawartości katalogu
 let groupNewMode = false;    // „Grupuj" — tworzenie katalogu z zaznaczonych kafelków
+let groupNameTouched = false; // czy nazwa została wpisana ręcznie — wtedy nie nadpisujemy jej automatem
 let manageSelected = {};
 let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ustępują wynikom
 
@@ -2076,7 +2080,10 @@ function renderCatalogManager() {
     const cnt = records.filter(r => (r.catalog || '') === n).length;
     const tag = document.createElement('div');
     tag.className = 'company-tag';
-    tag.innerHTML = `${n} (${cnt}) <span class="del" onclick="removeCatalogName('${n.replace(/'/g,"\\'")}')">✕</span>`;
+    const esc = n.replace(/'/g, "\\'");
+    tag.innerHTML = `${n} (${cnt})
+      <span class="del" onclick="renameCatalog('${esc}')" title="Zmień nazwę" style="margin-left:6px">✏️</span>
+      <span class="del" onclick="removeCatalogName('${esc}')" title="Usuń katalog">✕</span>`;
     el.appendChild(tag);
   });
 }
@@ -2124,6 +2131,41 @@ function removeCatalogName(name) {
     .then(snap => Promise.all(snap.docs.map(d => d.ref.delete())))
     .then(finish)
     .catch(e => showToast('Błąd usuwania: ' + e.message, 'error'));
+}
+
+function renameCatalog(oldName) {
+  if (!oldName) return;
+  const input = prompt('Nowa nazwa katalogu:', oldName);
+  if (input === null) return;
+  const name = input.trim();
+  if (!name || name === oldName) return;
+  if (catalogNames.includes(name)) { showToast('Katalog o tej nazwie już istnieje', 'error'); return; }
+
+  const inCat = records.filter(r => (r.catalog || '') === oldName);
+
+  const finish = () => {
+    inCat.forEach(r => r.catalog = name);
+    catalogNames = catalogNames.filter(n => n !== oldName);
+    catalogNames.push(name);
+    catalogNames.sort((a, b) => a.localeCompare(b, 'pl'));
+    if (currentCatalog === oldName) currentCatalog = name;
+    if (demoMode) {
+      localStorage.setItem('archivum_records', JSON.stringify(records));
+      localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
+    }
+    logActivity('zmienił(a) nazwę katalogu ' + oldName + ' na ' + name, {});
+    populateCatalogSelect();
+    renderCatalogManager();
+    applyFilters();
+    showToast('Nazwa zmieniona ✅', 'success');
+  };
+
+  if (demoMode) { finish(); return; }
+  Promise.all(inCat.map(r => db.collection('records').doc(r.id).update({ catalog: name })))
+    .then(() => db.collection('catalogs').where('name', '==', oldName).get())
+    .then(snap => Promise.all(snap.docs.map(d => d.ref.update({ name }))))
+    .then(finish)
+    .catch(e => showToast('Błąd zmiany nazwy: ' + e.message, 'error'));
 }
 
 function catalogTileHTML(name, items) {
@@ -2199,10 +2241,39 @@ function updateAssignBar() {
   const n = Object.keys(manageSelected).length;
   if (groupNewMode) {
     document.getElementById('group-count').textContent = n;
+    if (!groupNameTouched) applyAutoGroupName();
     return;
   }
   document.getElementById('assign-cat-name').textContent = currentCatalog || '—';
   document.getElementById('assign-count').textContent = n;
+}
+
+// Nazwa z zaznaczonych kafelków: firma i jej numery po przecinku, np. "ACME 4, 12"
+function autoGroupName() {
+  const sel = records.filter(r => manageSelected[r.id]);
+  if (!sel.length) return '';
+  const byCompany = new Map();
+  sel.forEach(r => {
+    const c = (r.company || '').trim() || 'Bez firmy';
+    if (!byCompany.has(c)) byCompany.set(c, []);
+    if (r.number) byCompany.get(c).push(r.number);
+  });
+  return [...byCompany.entries()]
+    .map(([c, nums]) => {
+      nums.sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+      return nums.length ? c + ' ' + nums.join(', ') : c;
+    })
+    .join(' + ');
+}
+
+function applyAutoGroupName() {
+  const input = document.getElementById('group-name-input');
+  if (input) input.value = autoGroupName();
+}
+
+function regenGroupName() {
+  groupNameTouched = false;
+  applyAutoGroupName();
 }
 
 // „Grupuj" z menu: zaznacz kafelki, nadaj wspólną nazwę, zatwierdź
@@ -2216,9 +2287,10 @@ function startGroupNew() {
   document.getElementById('assign-bar').style.display = 'none';
   document.getElementById('group-bar').style.display = 'flex';
   document.getElementById('group-name-input').value = '';
+  groupNameTouched = false;
   applyFilters();
   updateAssignBar();
-  showToast('Zaznacz kafelki, wpisz wspólną nazwę i zatwierdź.', '');
+  showToast('Zaznacz kafelki — nazwa ułoży się sama, możesz ją poprawić.', '');
 }
 
 function cancelGroupNew() {
