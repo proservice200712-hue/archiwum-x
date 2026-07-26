@@ -274,6 +274,29 @@
     vertical-align: bottom;
   }
 
+  /* Przełącznik widoku: katalogi zwinięte w foldery albo wszystko płasko */
+  .toggle-switch {
+    display: inline-flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none;
+    padding: 4px 10px 4px 4px;
+    border: 1px solid #e2e8f0; border-radius: 20px; background: #fff;
+  }
+  .toggle-switch:hover { border-color: #a0aec0; }
+  .toggle-track {
+    width: 44px; height: 24px; border-radius: 12px;
+    background: #cbd5e0; position: relative; flex-shrink: 0;
+    transition: background .18s;
+  }
+  .toggle-knob {
+    position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+    transition: transform .18s;
+  }
+  .toggle-switch.on .toggle-track { background: var(--green); }
+  .toggle-switch.on .toggle-knob { transform: translateX(20px); }
+  .toggle-label { font-size: 0.82rem; font-weight: 700; color: var(--dark); white-space: nowrap; }
+
   #catalog-bar, #assign-bar, #group-bar {
     display: none;
     position: sticky; top: var(--header-h, 52px); z-index: 89;
@@ -1183,6 +1206,11 @@
         <option value="type">▤ Sekcje: typ</option>
         <option value="producer">▤ Sekcje: producent</option>
       </select>
+      <div class="toggle-switch on" id="catalogs-toggle" onclick="toggleCatalogsView()"
+        title="Włączony: eksponaty schowane w folderach katalogów. Wyłączony: wszystkie kafelki naraz">
+        <span class="toggle-track"><span class="toggle-knob"></span></span>
+        <span class="toggle-label" id="catalogs-toggle-label">Katalogi</span>
+      </div>
       <button class="btn btn-gray btn-sm" onclick="clearFilters()" title="Wyczyść filtry">✕ Wyczyść</button>
     </div>
   </div>
@@ -1948,7 +1976,7 @@ function renderList(filteredRecords) {
   updateCatalogBar();
 
   // Przy szukaniu, druku i zarządzaniu katalogiem foldery znikają — widać wszystkie pasujące eksponaty
-  const flat = manageMode || printSelectMode || filtersActive;
+  const flat = manageMode || printSelectMode || filtersActive || !catalogsOn;
   let html = '';
 
   if (manageMode) {
@@ -2084,6 +2112,28 @@ let groupNewMode = false;    // „Grupuj" — tworzenie katalogu z zaznaczonych
 let groupNameTouched = false; // czy nazwa została wpisana ręcznie — wtedy nie nadpisujemy jej automatem
 let manageSelected = {};
 let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ustępują wynikom
+let catalogsOn = localStorage.getItem('archivum_catalogs_on') !== '0'; // widok: foldery czy wszystko płasko
+
+function toggleCatalogsView() {
+  catalogsOn = !catalogsOn;
+  localStorage.setItem('archivum_catalogs_on', catalogsOn ? '1' : '0');
+  if (!catalogsOn) {
+    // Widok płaski nie ma pojęcia „wnętrza katalogu"
+    currentCatalog = null;
+    document.getElementById('catalog-bar').style.display = 'none';
+  }
+  updateCatalogsToggle();
+  applyFilters();
+  showToast(catalogsOn ? 'Katalogi zwinięte w foldery' : 'Wszystkie eksponaty rozgrupowane', '');
+}
+
+function updateCatalogsToggle() {
+  const el = document.getElementById('catalogs-toggle');
+  if (el) el.classList.toggle('on', catalogsOn);
+  const lab = document.getElementById('catalogs-toggle-label');
+  if (lab) lab.textContent = catalogsOn ? 'Katalogi' : 'Wszystko';
+}
+updateCatalogsToggle();
 
 function loadCatalogNames() {
   if (demoMode) {
