@@ -1229,7 +1229,6 @@
     <button class="btn btn-ghost btn-sm no-print" id="btn-qr-print" onclick="openQRMenu()" title="Drukuj wiele: karty / QR / Mini QR">Drukuj</button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-group" onclick="startGroupNew()" title="Zaznacz kafelki i połącz je w katalog">Grupuj</button>
     <button class="btn btn-ghost btn-sm no-print hb-desktop" id="btn-filters" onclick="toggleFiltersPanel()" title="Szukaj, filtruj, sortuj, sekcje">🔍 Szukaj i filtry ▾<span class="flt-dot" id="filters-dot"></span></button>
-    <button class="btn btn-ghost btn-sm no-print hb-desktop" id="btn-catalogs" onclick="showCatalogManager()">📁 Katalogi</button>
     <button class="btn btn-primary btn-sm no-print" id="guest-login-btn" onclick="exitGuestMode()" style="display:none">🔑 Zaloguj się</button>
     <button class="btn btn-ghost btn-sm no-print hb-mobile hdr-trigger" id="btn-burger" onclick="toggleHdrMenu(event)" title="Menu">☰<span class="notif-dot"></span></button>
     <div id="current-user-avatar" class="user-avatar hb-desktop hdr-trigger" title="Menu użytkownika" onclick="toggleHdrMenu(event)" style="background:#718096;margin-left:2px"><span id="avatar-label">?</span><span class="notif-dot"></span></div>
@@ -1257,6 +1256,7 @@
         <option value="out">🔵 OUT</option>
         <option value="archiwum">🗄️ Archiwum</option>
       </select>
+      <button class="btn btn-gray btn-sm" id="btn-catalogs" onclick="showCatalogManager()">📁 Katalogi</button>
       <button class="btn btn-gray btn-sm" onclick="showCompanyManager()">🏢 Firmy</button>
       <button class="btn btn-gray btn-sm" onclick="showFairManager()">🎪 Targi</button>
     </div>
