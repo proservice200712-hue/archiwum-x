@@ -140,13 +140,13 @@
   .view.active { display: block; }
 
   /* LIST VIEW */
+  /* Pasek zawiera już tylko wysuwany panel filtrów — zwinięty ma zerową wysokość */
   .list-toolbar {
-    padding: 12px 20px 12px;
+    padding: 0;
     display: flex;
     flex-direction: column;
     gap: 0;
     background: var(--white);
-    border-bottom: 1px solid var(--lightgray);
   }
   .search-box {
     flex: 1;
@@ -1028,8 +1028,7 @@
   }
 
   /* ==================== PANEL FILTRÓW (wysuwany) ==================== */
-  .toolbar-top { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; width: 100%; }
-  #btn-filters.active { background: var(--blue); color: #fff; }
+  #btn-filters.active { background: var(--blue); color: #fff; border-color: var(--blue); }
   .flt-dot {
     display: none;
     width: 8px; height: 8px;
@@ -1042,8 +1041,8 @@
     transition: max-height 0.28s ease;
     width: 100%;
   }
-  .filters-panel.open { max-height: 460px; }
-  .filters-inner { padding-top: 10px; }
+  .filters-panel.open { max-height: 520px; }
+  .filters-inner { padding: 12px 20px; border-bottom: 1px solid var(--lightgray); }
 
   /* ==================== POŚWIATA KAFELKA WG STATUSU ==================== */
   .record-card.card-czerwony:hover  { box-shadow: 0 6px 26px rgba(229,62,62,0.50); }
@@ -1057,9 +1056,7 @@
   @media (max-width: 760px) {
     .hb-mobile { display: inline-flex !important; }
     .hb-desktop { display: none !important; }
-    .toolbar-top { display: none; }
-    .list-toolbar { padding: 0 12px; }
-    .list-toolbar:has(.filters-panel.open) { padding: 10px 12px; }
+    .filters-inner { padding: 10px 12px; }
   }
 
   /* Tryb gościa — musi być po regułach .hb-mobile, żeby je przebić */
@@ -1231,6 +1228,8 @@
     <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">Skanuj QR</button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-qr-print" onclick="openQRMenu()" title="Drukuj wiele: karty / QR / Mini QR">Drukuj</button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-group" onclick="startGroupNew()" title="Zaznacz kafelki i połącz je w katalog">Grupuj</button>
+    <button class="btn btn-ghost btn-sm no-print hb-desktop" id="btn-filters" onclick="toggleFiltersPanel()" title="Szukaj, filtruj, sortuj, sekcje">🔍 Szukaj i filtry ▾<span class="flt-dot" id="filters-dot"></span></button>
+    <button class="btn btn-ghost btn-sm no-print hb-desktop" id="btn-catalogs" onclick="showCatalogManager()">📁 Katalogi</button>
     <button class="btn btn-primary btn-sm no-print" id="guest-login-btn" onclick="exitGuestMode()" style="display:none">🔑 Zaloguj się</button>
     <button class="btn btn-ghost btn-sm no-print hb-mobile hdr-trigger" id="btn-burger" onclick="toggleHdrMenu(event)" title="Menu">☰<span class="notif-dot"></span></button>
     <div id="current-user-avatar" class="user-avatar hb-desktop hdr-trigger" title="Menu użytkownika" onclick="toggleHdrMenu(event)" style="background:#718096;margin-left:2px"><span id="avatar-label">?</span><span class="notif-dot"></span></div>
@@ -1247,10 +1246,6 @@
 <!-- LIST VIEW -->
 <div class="view active" id="view-list">
   <div class="list-toolbar">
-    <div class="toolbar-top">
-      <button class="btn btn-gray btn-sm" id="btn-filters" onclick="toggleFiltersPanel()" title="Szukaj, filtruj, sortuj, sekcje">🔍 Szukaj i filtry ▾<span class="flt-dot" id="filters-dot"></span></button>
-      <button class="btn btn-gray btn-sm" onclick="showCatalogManager()">📁 Katalogi</button>
-    </div>
    <div class="filters-panel" id="filters-panel"><div class="filters-inner">
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%">
       <input class="search-box" type="search" placeholder="🔍 Szukaj po nazwie firmy..." oninput="applyFilters()" id="searchInput" style="flex:1;min-width:160px">
@@ -4226,7 +4221,9 @@ function toggleFiltersPanel(forceOpen) {
   const panel = document.getElementById('filters-panel');
   const btn = document.getElementById('btn-filters');
   if (!panel) return;
-  const open = forceOpen === true ? true : !panel.classList.contains('open');
+  const open = (forceOpen === true || forceOpen === false)
+    ? forceOpen
+    : !panel.classList.contains('open');
   panel.classList.toggle('open', open);
   if (btn) btn.classList.toggle('active', open);
   if (open) setTimeout(() => { const s = document.getElementById('searchInput'); if (s) s.focus(); }, 200);
@@ -4589,12 +4586,11 @@ let guestMode = false;
 
 function setGuestUI(on) {
   // W trybie gościa ukryj wszystko poza skanowaniem
-  ['btn-new','btn-qr-print','btn-group','btn-burger'].forEach(id => {
+  ['btn-new','btn-qr-print','btn-group','btn-burger','btn-filters','btn-catalogs'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('guest-hidden', on);
   });
-  const tt = document.querySelector('.toolbar-top');
-  if (tt) tt.classList.toggle('guest-hidden', on);
+  if (on) toggleFiltersPanel(false);
   document.getElementById('current-user-avatar').style.display = on ? 'none' : '';
   document.getElementById('guest-login-btn').style.display = on ? 'inline-flex' : 'none';
 }
