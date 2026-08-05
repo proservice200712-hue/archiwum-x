@@ -1461,6 +1461,19 @@
       <div class="form-group inline-other" id="type-other-wrap">
         <input type="text" id="f-type-other" placeholder="Wpisz typ...">
       </div>
+      <div class="form-group">
+        <label>Producent</label>
+        <select id="f-producer" onchange="checkOtherProducer(this)">
+          <option value="">— wybierz —</option>
+          <option value="Dima">Dima</option>
+          <option value="Marplex">Marplex</option>
+          <option value="Renata">Renata</option>
+          <option value="inne">+ Wpisz innego...</option>
+        </select>
+        <div class="inline-other" id="producer-other-wrap" style="margin-top:6px">
+          <input type="text" id="f-producer-other" placeholder="Nazwa producenta...">
+        </div>
+      </div>
     </div>
 
     <!-- PODŚWIETLENIE -->
@@ -1514,32 +1527,17 @@
       <input type="hidden" id="f-mount" value="[]">
     </div>
 
-    <!-- PRODUCENT, NAPIĘCIE, PRZEWODY -->
+    <!-- NAPIĘCIE, PRZEWODY -->
     <div class="form-section">
       <div class="section-title">Specyfikacja techniczna</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Producent</label>
-          <select id="f-producer" onchange="checkOtherProducer(this)">
-            <option value="">— wybierz —</option>
-            <option value="Dima">Dima</option>
-            <option value="Marplex">Marplex</option>
-            <option value="Renata">Renata</option>
-            <option value="inne">+ Wpisz innego...</option>
-          </select>
-          <div class="inline-other" id="producer-other-wrap" style="margin-top:6px">
-            <input type="text" id="f-producer-other" placeholder="Nazwa producenta...">
-          </div>
+      <div class="form-group">
+        <label>Napięcie</label>
+        <div class="check-group" style="margin-top:4px">
+          <label class="check-pill" onclick="togglePill(this,'f-voltage')"><input type="radio" name="voltage" value="12V">12V</label>
+          <label class="check-pill" onclick="togglePill(this,'f-voltage')"><input type="radio" name="voltage" value="24V">24V</label>
+          <label class="check-pill" onclick="togglePill(this,'f-voltage')"><input type="radio" name="voltage" value="5V">5V</label>
         </div>
-        <div class="form-group">
-          <label>Napięcie</label>
-          <div class="check-group" style="margin-top:4px">
-            <label class="check-pill" onclick="togglePill(this,'f-voltage')"><input type="radio" name="voltage" value="12V">12V</label>
-            <label class="check-pill" onclick="togglePill(this,'f-voltage')"><input type="radio" name="voltage" value="24V">24V</label>
-            <label class="check-pill" onclick="togglePill(this,'f-voltage')"><input type="radio" name="voltage" value="5V">5V</label>
-          </div>
-          <input type="hidden" id="f-voltage" value="">
-        </div>
+        <input type="hidden" id="f-voltage" value="">
       </div>
       <div class="form-group">
         <label>Długość przewodów</label>
