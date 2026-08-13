@@ -1183,7 +1183,9 @@
           style="flex:2;min-width:140px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.85rem">
         <button class="btn btn-primary" onclick="addUser()">Dodaj</button>
       </div>
-      <div style="font-size:0.72rem;color:#a0aec0;margin-top:8px">Kolor awatara zostanie przypisany automatycznie.</div>
+      <input type="text" id="new-user-note" placeholder="Do kogo należy? (np. Jan Kowalski — magazyn)" maxlength="60"
+        style="width:100%;margin-top:8px;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:0.85rem">
+      <div style="font-size:0.72rem;color:#a0aec0;margin-top:8px">Kolor awatara zostanie przypisany automatycznie. Notatka jest tylko informacyjna — widzi ją admin.</div>
     </div>
     <div style="text-align:right">
       <button class="btn btn-gray" onclick="closeUserModal()">Zamknij</button>
@@ -4546,9 +4548,12 @@ async function loadUsersFromFirebase() {
   try {
     const snap = await db.collection('users').get();
     if (!snap.empty) {
-      const extra = snap.docs.map(d => d.data()).filter(u => u.login !== 'KG');
+      const all = snap.docs.map(d => d.data());
+      const extra = all.filter(u => u.login !== 'KG');
+      const kg = all.find(u => u.login === 'KG');
       USERS = [
-        { login: 'KG', password: 'Ingenium99*', color: '#38a169', label: 'KG', admin: true },
+        // Hasło admina zostaje w kodzie; z bazy bierzemy tylko notatkę
+        { login: 'KG', password: 'Ingenium99*', color: '#38a169', label: 'KG', admin: true, note: (kg && kg.note) || '' },
         ...extra
       ];
     }
@@ -4638,18 +4643,44 @@ function closeUserModal() {
   document.getElementById('userModal').style.display = 'none';
 }
 
+// Bezpieczne wstawienie tekstu użytkownika do atrybutu value
+function escAttr(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function renderUserManager() {
   const list = document.getElementById('users-list');
   if (!list) return;
   list.innerHTML = USERS.map((u, i) => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #e2e8f0">
       <div class="user-avatar" style="background:${u.color}">${u.label}</div>
-      <div style="flex:1">
+      <div style="flex:1;min-width:0">
         <div style="font-weight:700;font-size:0.9rem">${u.login}</div>
         <div style="font-size:0.75rem;color:#a0aec0">${u.admin ? '👑 Admin' : 'Użytkownik'}</div>
+        <input type="text" value="${escAttr(u.note)}" maxlength="60" placeholder="Do kogo należy? (notatka)"
+          onchange="setUserNote(${i}, this.value)"
+          title="Notatka informacyjna — do kogo należy ten login"
+          style="width:100%;margin-top:5px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.76rem;color:var(--gray);background:#f7fafc">
       </div>
       ${u.admin ? '' : `<button class="btn btn-danger btn-sm" onclick="removeUser(${i})">✕</button>`}
     </div>`).join('');
+}
+
+// Notatka „do kogo należy login" — zapisywana osobno, żeby nie przepisywać hasła
+async function setUserNote(idx, value) {
+  const u = USERS[idx];
+  if (!u) return;
+  u.note = value.trim();
+  if (demoMode) {
+    localStorage.setItem('archivum_users', JSON.stringify(USERS));
+  } else {
+    try {
+      await db.collection('users').doc(u.login).set({ login: u.login, note: u.note }, { merge: true });
+    } catch(e) { console.log('Note save error:', e); showToast('Nie udało się zapisać notatki', 'error'); return; }
+  }
+  showToast('Zapisano notatkę dla ' + u.login + ' ✅', 'success');
 }
 
 function addUser() {
@@ -4659,11 +4690,13 @@ function addUser() {
   if (login.length > 3) { showToast('Login max 3 znaki!', 'error'); return; }
   if (USERS.find(u => u.login === login)) { showToast('Taki login już istnieje!', 'error'); return; }
   const color = USER_COLORS[USERS.length % USER_COLORS.length];
-  const newUser = { login, password: pass, color, label: login, admin: false };
+  const note = (document.getElementById('new-user-note').value || '').trim();
+  const newUser = { login, password: pass, color, label: login, admin: false, note };
   USERS.push(newUser);
   saveUserToFirebase(newUser);
   document.getElementById('new-user-login').value = '';
   document.getElementById('new-user-pass').value = '';
+  document.getElementById('new-user-note').value = '';
   renderUserManager();
   showToast('Dodano użytkownika ' + login + '! ✅', 'success');
 }
