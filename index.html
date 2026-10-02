@@ -1056,6 +1056,56 @@
   *, *::before, *::after { border-radius: 0 !important; }
   .user-avatar, .user-avatar-sm, .select-check, .notif-dot, .flt-dot,
   .detail-warn .dw-icon { border-radius: 50% !important; }
+  /* ==================== CHMURKA PODGLADU PO NAJECHANIU NA KAFELEK ==================== */
+  #tile-tip {
+    display: none;
+    position: fixed;
+    z-index: 4000;
+    width: 310px;
+    max-width: calc(100vw - 20px);
+    background: #fff;
+    border: 1.5px solid var(--dark);
+    box-shadow: 0 14px 36px rgba(0,0,0,0.30);
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--dark);
+    pointer-events: none;   /* chmurka nie przechwytuje myszy - nie miga i nie zaslania klikania */
+  }
+  #tile-tip .tt-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-bottom: 1px solid #e2e8f0; background: #f7fafc;
+  }
+  #tile-tip .tt-name { font-weight: 800; font-size: 0.86rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  #tile-tip .tt-body { padding: 9px 10px; }
+  #tile-tip .tt-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+  #tile-tip .tt-k { color: var(--gray); font-size: 0.71rem; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+  #tile-tip .tt-v { font-weight: 600; overflow-wrap: anywhere; }
+  #tile-tip .tt-warn {
+    margin-top: 9px; padding: 6px 8px;
+    background: #fff5f5; border: 1px solid var(--red); color: #9b2c2c;
+    font-weight: 700; font-size: 0.73rem;
+  }
+  #tile-tip .tt-notes {
+    margin-top: 9px; padding: 6px 8px;
+    background: #f7fafc; border-left: 3px solid var(--blue); color: var(--gray);
+  }
+  #tile-tip .tt-foot { padding: 6px 10px; border-top: 1px solid #e2e8f0; color: #a0aec0; font-size: 0.7rem; }
+  /* Podgląd zawartości katalogu: male kafelki eksponatów */
+  #tile-tip .tt-mini { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  #tile-tip .tt-mini-item { border: 1px solid #e2e8f0; background: #fff; overflow: hidden; }
+  #tile-tip .tt-mini-img {
+    height: 54px; background: #f0f4f8;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.3rem; overflow: hidden;
+  }
+  #tile-tip .tt-mini-img img { width: 100%; height: 54px; object-fit: contain; background: #f0f4f8; }
+  #tile-tip .tt-mini-cap {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 4px; font-size: 0.65rem; font-weight: 700; line-height: 1.3;
+  }
+  #tile-tip .tt-mini-dot { width: 7px; height: 7px; flex-shrink: 0; }
+  #tile-tip .tt-mini-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #tile-tip .tt-more { margin-top: 7px; text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--gray); }
 </style>
 </head>
 <body>
@@ -1233,6 +1283,9 @@
 
 <!-- Menu użytkownika / burger (awatar KG lub ☰ na telefonie) -->
 <div id="hdr-menu" class="no-print"></div>
+
+<!-- Chmurka z podglądem eksponatu (po przytrzymaniu kursora na kafelku) -->
+<div id="tile-tip" class="no-print"></div>
 
 <!-- LIST VIEW -->
 <div class="view active" id="view-list">
@@ -2494,7 +2547,7 @@ function catalogTileHTML(name, items) {
   const iconHTML = img
     ? `<div class="cat-icon"><img src="${img}" alt="obrazek katalogu"></div>`
     : `<div class="cat-icon">📁</div>`;
-  return `<div class="catalog-card" onclick="openCatalog('${name.replace(/'/g,"\\'")}')" title="Otwórz katalog">
+  return `<div class="catalog-card" data-cat="${escAttr(name)}" onclick="openCatalog('${name.replace(/'/g,"\\'")}')" title="Otwórz katalog">
     <div class="cat-stack s1"></div>
     <div class="cat-stack s2"></div>
     <div class="cat-face">
@@ -4243,6 +4296,163 @@ function updateFiltersDot() {
   dot.style.display = (anySelect || q) ? 'inline-block' : 'none';
 }
 
+// ==================== CHMURKA PODGLĄDU PO NAJECHANIU NA KAFELEK ====================
+const TIP_DELAY = 1200;        // ile trzeba potrzymać kursor na kafelku, zanim pojawi się podgląd
+let tipTimer = null;
+let tipForId = null;           // kafelek, nad którym jest kursor
+const tipMouse = { x: 0, y: 0 };
+
+// Śledzenie kursora: stąd wiadomo, gdzie postawić chmurkę i czy kursor wciąż jest na kafelku
+document.addEventListener('mousemove', e => {
+  tipMouse.x = e.clientX;
+  tipMouse.y = e.clientY;
+  tipTrack(e.target);
+}, { passive: true });
+
+// Ten sam kafelek — nie przerywaj odliczania. Inny albo żaden — schowaj i zacznij od nowa.
+function tipTrack(target) {
+  const card = (target && target.closest) ? target.closest('.record-card, .catalog-card') : null;
+  const id = !card ? null
+    : card.classList.contains('catalog-card') ? 'cat:' + (card.getAttribute('data-cat') || '')
+    : card.getAttribute('data-id');
+  if (id && id === tipForId) return;
+  cancelTilePreview();
+  if (!id || !tipAllowed()) return;
+  tipForId = id;
+  tipTimer = setTimeout(() => showTilePreview(id), TIP_DELAY);
+}
+
+function tipAllowed() {
+  // Na dotyku nie ma najeżdżania, a w trybach zaznaczania chmurka zasłaniałaby sąsiednie kafelki
+  if (manageMode || printSelectMode) return false;
+  return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+}
+
+function cancelTilePreview() {
+  if (tipTimer) { clearTimeout(tipTimer); tipTimer = null; }
+  tipForId = null;
+  const tip = document.getElementById('tile-tip');
+  if (tip) tip.style.display = 'none';
+}
+
+function tilePreviewHTML(r) {
+  const def = STATUS_DEFS.find(s => s.value === r.status);
+  const dims = (r.thickness || r.width || r.height)
+    ? `${r.width || '?'} × ${r.height || '?'} × ${r.thickness || '?'} ${r.dimUnit || 'cm'}` : '';
+  const lastFair = (r.fairHistory && r.fairHistory.length) ? r.fairHistory[r.fairHistory.length - 1] : null;
+  const rows = [
+    ['Wymiary', dims],
+    ['Typ', r.type],
+    ['Podświetlenie', lightingStr(r)],
+    ['Kolor światła', lightColorStr(r)],
+    ['Montaż', Array.isArray(r.mount) ? r.mount.join(', ') : r.mount],
+    ['Producent', r.producer],
+    ['Napięcie', r.voltage],
+    ['Przewody', r.cableLength],
+    ['Katalog', r.catalog],
+    ['Ostatnie targi', lastFair ? (lastFair.text + (lastFair.date ? ' — ' + lastFair.date : '')) : '']
+  ].filter(x => x[1]);
+
+  const grid = rows.map(([k, v]) =>
+    `<div class="tt-k">${escAttr(k)}</div><div class="tt-v">${escAttr(v)}</div>`).join('');
+
+  const warn = needsTemplate(r)
+    ? `<div class="tt-warn">! Wymaga szablonu (snap-fix / dystanse) i dystansów</div>` : '';
+
+  const notes = r.notes
+    ? `<div class="tt-notes">${escAttr(r.notes.length > 180 ? r.notes.slice(0, 180) + '…' : r.notes)}</div>` : '';
+
+  const when = r.updatedAt
+    ? new Date(r.updatedAt).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+  const foot = (r.updatedBy || when)
+    ? `<div class="tt-foot">Ostatnia zmiana: ${escAttr(r.updatedBy || '—')}${when ? ' — ' + when : ''}</div>` : '';
+
+  return `<div class="tt-head">
+      <span class="tt-name">${escAttr((r.number ? '#' + r.number + '  ' : '') + (r.company || '—'))}</span>
+      <span style="white-space:nowrap">${def ? def.icon + ' ' + escAttr(def.label) : ''}</span>
+    </div>
+    <div class="tt-body">
+      ${grid ? `<div class="tt-grid">${grid}</div>` : '<em style="color:#a0aec0">Brak danych technicznych</em>'}
+      ${warn}${notes}
+    </div>${foot}`;
+}
+
+function statusColor(st) {
+  return st === 'wróciło' ? 'var(--red)' : st === 'sprawdzone' ? 'var(--yellow)'
+    : st === 'gotowe' ? 'var(--green)' : st === 'out' ? 'var(--blue)'
+    : st === 'archiwum' ? '#4a5568' : '#cbd5e0';
+}
+
+// Podgląd katalogu: male kafelki tego, co w nim siedzi
+function catalogPreviewHTML(name, items) {
+  const MAX = 12;
+  const mini = items.slice(0, MAX).map(r => {
+    const ph = photoOfRecord(r);
+    return `<div class="tt-mini-item">
+      <div class="tt-mini-img">${ph ? `<img src="${escAttr(ph)}" alt="">` : '\u{1F4E6}'}</div>
+      <div class="tt-mini-cap">
+        <span class="tt-mini-dot" style="background:${statusColor(r.status)}"></span>
+        <span class="tt-mini-name">${escAttr((r.number ? '#' + r.number + ' ' : '') + (r.company || '—'))}</span>
+      </div>
+    </div>`;
+  }).join('');
+  const more = items.length > MAX ? `<div class="tt-more">+ ${items.length - MAX} więcej…</div>` : '';
+  const dots = STATUS_DEFS
+    .map(s => ({ s, n: items.filter(r => r.status === s.value).length }))
+    .filter(x => x.n > 0)
+    .map(x => `<span style="white-space:nowrap">${x.s.icon} ${x.n}</span>`)
+    .join('&nbsp;&nbsp;');
+  return `<div class="tt-head">
+      <span class="tt-name">\u{1F4C1} ${escAttr(name)}</span>
+      <span style="white-space:nowrap">${items.length === 1 ? '1 szt.' : items.length + ' szt.'}</span>
+    </div>
+    <div class="tt-body">
+      ${items.length ? `<div class="tt-mini">${mini}</div>${more}` : '<em style="color:#a0aec0">Katalog jest pusty</em>'}
+    </div>
+    ${dots ? `<div class="tt-foot">${dots}</div>` : ''}`;
+}
+
+function showTilePreview(id) {
+  tipTimer = null;
+  const tip = document.getElementById('tile-tip');
+  if (!tip || !tipAllowed()) return;
+
+  if (id.indexOf('cat:') === 0) {
+    const name = id.slice(4);
+    const items = records.filter(rec => (rec.catalog || '') === name && rec.status !== 'archiwum');
+    tip.innerHTML = catalogPreviewHTML(name, items);
+    positionTilePreview(tip);
+    return;
+  }
+
+  const r = records.find(rec => rec.id === id);
+  if (!r) return;
+  tip.innerHTML = tilePreviewHTML(r);
+
+  positionTilePreview(tip);
+}
+
+// Najpierw zmierz, potem ustaw - chmurka ma się zmieścić w oknie
+function positionTilePreview(tip) {
+  tip.style.visibility = 'hidden';
+  tip.style.display = 'block';
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = tipMouse.x + 18, y = tipMouse.y + 18;
+  if (x + w > window.innerWidth - 8) x = tipMouse.x - w - 18;
+  if (y + h > window.innerHeight - 8) y = tipMouse.y - h - 18;
+  tip.style.left = Math.max(8, x) + 'px';
+  tip.style.top = Math.max(8, y) + 'px';
+  tip.style.visibility = 'visible';
+}
+
+document.addEventListener('mouseover', e => tipTrack(e.target));
+document.addEventListener('mouseleave', cancelTilePreview);
+
+document.addEventListener('click', cancelTilePreview);
+document.addEventListener('scroll', cancelTilePreview, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') cancelTilePreview(); });
+
 // ==================== VIEWS ====================
 // Powrót do listy (logo / tytuł w nagłówku)
 function goHome() {
@@ -4251,6 +4461,7 @@ function goHome() {
 }
 
 function showView(name) {
+  cancelTilePreview();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   window.scrollTo(0, 0);
