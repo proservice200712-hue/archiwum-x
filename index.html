@@ -109,9 +109,12 @@
     .header-author { font-size: 0.5rem; }
     header h1 { font-size: 0.8rem; letter-spacing: 0.5px; }
   }
+  /* Guziki konturowe: bez wypełnienia, obwódka i napis w kolorze przycisku.
+     Tło pojawia się ledwo widocznie dopiero po najechaniu. */
   .btn {
     padding: 8px 16px;
-    border: none;
+    background: transparent;
+    border: 1.5px solid currentColor;
     border-radius: 0 var(--radius) 0 0;
     font-size: 0.85rem;
     font-weight: 600;
@@ -122,18 +125,24 @@
     gap: 6px;
   }
   .btn:active { transform: scale(0.97); }
-  .btn-primary { background: var(--blue); color: #fff; }
-  .btn-primary:hover { background: #2b6cb0; }
-  .btn-success { background: var(--green); color: #fff; }
-  .btn-success:hover { background: #276749; }
-  .btn-danger { background: var(--red); color: #fff; }
-  .btn-danger:hover { background: #9b2c2c; }
-  .btn-ghost { background: #edf2f7; color: var(--dark); border: 1.5px solid #cbd5e0; }
-  .btn-ghost:hover { background: #e2e8f0; }
-  .btn-gray { background: #edf2f7; color: var(--dark); }
-  .btn-gray:hover { background: #e2e8f0; }
-  .btn-yellow { background: var(--yellow); color: #fff; }
+  .btn-primary { color: var(--blue); }
+  .btn-primary:hover { background: rgba(49,130,206,0.12); }
+  .btn-success { color: var(--green); }
+  .btn-success:hover { background: rgba(56,161,105,0.12); }
+  .btn-danger { color: var(--red); }
+  .btn-danger:hover { background: rgba(229,62,62,0.12); }
+  .btn-ghost { color: var(--dark); border-color: #a0aec0; }
+  .btn-ghost:hover { background: rgba(26,32,44,0.08); border-color: var(--dark); }
+  .btn-gray { color: var(--gray); border-color: #a0aec0; }
+  .btn-gray:hover { background: rgba(74,85,104,0.10); border-color: var(--gray); }
+  .btn-yellow { color: var(--yellow); }
+  .btn-yellow:hover { background: rgba(214,158,46,0.14); }
   .btn-sm { padding: 5px 10px; font-size: 0.78rem; }
+  /* Ciemny pasek nagłówka: kontury muszą być jasne, inaczej zlewają się z tłem */
+  header .btn-ghost, header .btn-gray { color: #e2e8f0; border-color: #718096; }
+  header .btn-ghost:hover, header .btn-gray:hover { background: rgba(255,255,255,0.14); border-color: #e2e8f0; }
+  header .btn-primary { color: #90cdf4; border-color: #90cdf4; }
+  header .btn-primary:hover { background: rgba(144,205,244,0.18); }
 
   /* VIEWS */
   .view { display: none; }
@@ -268,29 +277,6 @@
     vertical-align: bottom;
   }
 
-  /* Przełącznik widoku: katalogi zwinięte w foldery albo wszystko płasko */
-  .toggle-switch {
-    display: inline-flex; align-items: center; gap: 8px;
-    cursor: pointer; user-select: none;
-    padding: 4px 10px 4px 4px;
-    border: 1px solid #e2e8f0; border-radius: 20px; background: #fff;
-  }
-  .toggle-switch:hover { border-color: #a0aec0; }
-  .toggle-track {
-    width: 44px; height: 24px; border-radius: 12px;
-    background: #cbd5e0; position: relative; flex-shrink: 0;
-    transition: background .18s;
-  }
-  .toggle-knob {
-    position: absolute; top: 3px; left: 3px;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
-    transition: transform .18s;
-  }
-  .toggle-switch.on .toggle-track { background: var(--green); }
-  .toggle-switch.on .toggle-knob { transform: translateX(20px); }
-  .toggle-label { font-size: 0.82rem; font-weight: 700; color: var(--dark); white-space: nowrap; }
-
   #catalog-bar, #assign-bar, #group-bar {
     display: none;
     position: sticky; top: var(--header-h, 52px); z-index: 89;
@@ -359,17 +345,8 @@
   }
   .select-qty .qty-num { min-width: 16px; text-align: center; font-weight: 800; color: var(--blue); font-size: 0.9rem; }
 
-  /* Stopka kafelka: status zawsze wyśrodkowany, avatar i wykrzyknik pozycjonowane absolutnie */
+  /* Stopka kafelka: status zawsze wyśrodkowany, avatar pozycjonowany absolutnie */
   .footer-avatar { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 2; }
-  .tile-warn {
-    position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 2;
-    width: 22px; height: 22px; border-radius: 50%;
-    background: var(--red); color: #fff;
-    font-weight: 900; font-size: 0.95rem; line-height: 1;
-    display: inline-flex; align-items: center; justify-content: center;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
-    cursor: help;
-  }
 
   #print-select-bar {
     display: none;
@@ -739,6 +716,19 @@
     gap: 8px;
     margin-top: 8px;
   }
+  /* Ostrzeżenie o szablonie i dystansach — przeniesione z kafelka na kartę */
+  .detail-warn {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px; padding: 10px 12px;
+    background: #fff5f5; border: 1.5px solid var(--red);
+    color: #9b2c2c; font-size: 0.84rem; font-weight: 600; line-height: 1.45;
+  }
+  .detail-warn .dw-icon {
+    flex-shrink: 0; width: 24px; height: 24px;
+    background: var(--red); color: #fff;
+    font-weight: 900; font-size: 1rem; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
   .detail-field { font-size: 0.85rem; }
   .detail-field .lbl { color: var(--gray); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px; }
   .detail-field .val { font-weight: 600; margin-top: 2px; }
@@ -1064,8 +1054,8 @@
 
   /* ==================== KĄT PROSTY (bez zaokrągleń) ==================== */
   *, *::before, *::after { border-radius: 0 !important; }
-  .user-avatar, .user-avatar-sm, .select-check, .notif-dot, .flt-dot { border-radius: 50% !important; }
-  .toggle-track, .toggle-knob { border-radius: 999px !important; }
+  .user-avatar, .user-avatar-sm, .select-check, .notif-dot, .flt-dot,
+  .detail-warn .dw-icon { border-radius: 50% !important; }
 </style>
 </head>
 <body>
@@ -1286,11 +1276,12 @@
         <option value="type">▤ Sekcje: typ</option>
         <option value="producer">▤ Sekcje: producent</option>
       </select>
-      <div class="toggle-switch" id="catalogs-toggle" onclick="toggleCatalogsView()"
-        title="Włączony: eksponaty schowane w folderach katalogów. Wyłączony: wszystkie kafelki naraz">
-        <span class="toggle-track"><span class="toggle-knob"></span></span>
-        <span class="toggle-label" id="catalogs-toggle-label">Wszystko</span>
-      </div>
+      <select class="filter-select" onchange="setViewMode(this.value)" id="filter-view" style="flex:1;min-width:170px"
+        title="Płasko: same eksponaty. Katalogi: foldery u góry, luźne pod spodem. Mieszane: foldery i eksponaty razem, alfabetycznie">
+        <option value="flat">▦ Widok: wszystko płasko</option>
+        <option value="folders">📁 Widok: katalogi w folderach</option>
+        <option value="mixed">🔤 Widok: mieszany A–Z</option>
+      </select>
       <button class="btn btn-gray btn-sm" onclick="clearFilters()" title="Wyczyść filtry">✕ Wyczyść</button>
     </div>
    </div></div>
@@ -1636,6 +1627,10 @@
           <div class="detail-field"><div class="lbl">Producent</div><div class="val" id="d-producer">—</div></div>
           <div class="detail-field"><div class="lbl">Napięcie</div><div class="val" id="d-voltage">—</div></div>
           <div class="detail-field"><div class="lbl">Przewody</div><div class="val" id="d-cable">—</div></div>
+        </div>
+        <div id="d-warn" class="detail-warn" style="display:none">
+          <span class="dw-icon">!</span>
+          <span>Montaż wymaga przygotowania <strong>szablonu</strong> (snap-fix / dystanse) oraz <strong>dystansów</strong>.</span>
         </div>
         <div id="d-notes" class="detail-notes" style="display:none"></div>
       </div>
@@ -2055,7 +2050,7 @@ function renderList(filteredRecords) {
   updateCatalogBar();
 
   // Przy szukaniu, druku i zarządzaniu katalogiem foldery znikają — widać wszystkie pasujące eksponaty
-  const flat = manageMode || printSelectMode || filtersActive || !catalogsOn;
+  const forceFlat = manageMode || printSelectMode || filtersActive;
   let html = '';
 
   if (manageMode) {
@@ -2070,12 +2065,24 @@ function renderList(filteredRecords) {
     list = list.filter(r => (r.catalog || '') === currentCatalog);
     if (list.length) html = recordsHTML(list);
   } else {
-    if (!flat && catalogNames.length) {
-      const tiles = catalogNames.map(n =>
-        catalogTileHTML(n, records.filter(r => (r.catalog || '') === n && r.status !== 'archiwum')));
-      html += `<div class="records-grid">${tiles.join('')}</div>`;
+    const inCatalog = r => r.catalog && catalogNames.includes(r.catalog);
+    const tileFor = n => catalogTileHTML(n, records.filter(r => (r.catalog || '') === n && r.status !== 'archiwum'));
+    if (!forceFlat && viewMode === 'mixed') {
+      // Foldery i luźne eksponaty w jednej siatce, poukładane alfabetycznie
+      const mixed = [
+        ...catalogNames.map(n => ({ key: n || '', nr: 0, html: tileFor(n) })),
+        ...list.filter(r => !inCatalog(r)).map(r => ({ key: r.company || '', nr: parseInt(r.number) || 0, html: recordCardHTML(r) }))
+      ].sort((a, b) => {
+        // Najpierw alfabetycznie po nazwie, a w obrębie jednej firmy po numerze rosnąco
+        const byName = a.key.localeCompare(b.key, 'pl', { numeric: true, sensitivity: 'base' });
+        return byName !== 0 ? byName : a.nr - b.nr;
+      });
+      if (mixed.length) html += `<div class="records-grid">${mixed.map(x => x.html).join('')}</div>`;
+      list = [];
+    } else if (!forceFlat && viewMode === 'folders' && catalogNames.length) {
+      html += `<div class="records-grid">${catalogNames.map(tileFor).join('')}</div>`;
       // Eksponaty leżące w katalogach są schowane w folderach
-      list = list.filter(r => !(r.catalog && catalogNames.includes(r.catalog)));
+      list = list.filter(r => !inCatalog(r));
     }
     if (list.length) html += recordsHTML(list);
   }
@@ -2191,28 +2198,25 @@ let groupNewMode = false;    // „Grupuj" — tworzenie katalogu z zaznaczonych
 let groupNameTouched = false; // czy nazwa została wpisana ręcznie — wtedy nie nadpisujemy jej automatem
 let manageSelected = {};
 let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ustępują wynikom
-// Po otwarciu strony zawsze widok płaski — wszystkie eksponaty bez folderów
-let catalogsOn = false;
+// Trzy tryby widoku listy. Po otwarciu strony zawsze płasko — wszystkie eksponaty bez folderów
+//   'flat'    — same eksponaty, bez folderów
+//   'folders' — foldery katalogów u góry, eksponaty spoza katalogów pod spodem
+//   'mixed'   — foldery i luźne eksponaty razem w jednej siatce, po alfabecie
+let viewMode = 'flat';
 
-function toggleCatalogsView() {
-  catalogsOn = !catalogsOn;
-  if (!catalogsOn) {
+function setViewMode(mode) {
+  viewMode = mode;
+  if (mode === 'flat') {
     // Widok płaski nie ma pojęcia „wnętrza katalogu"
     currentCatalog = null;
     document.getElementById('catalog-bar').style.display = 'none';
   }
-  updateCatalogsToggle();
   applyFilters();
-  showToast(catalogsOn ? 'Katalogi zwinięte w foldery' : 'Wszystkie eksponaty rozgrupowane', '');
+  showToast(
+    mode === 'folders' ? 'Katalogi zwinięte w foldery' :
+    mode === 'mixed'   ? 'Widok mieszany — katalogi i eksponaty po alfabecie' :
+                         'Wszystkie eksponaty rozgrupowane', '');
 }
-
-function updateCatalogsToggle() {
-  const el = document.getElementById('catalogs-toggle');
-  if (el) el.classList.toggle('on', catalogsOn);
-  const lab = document.getElementById('catalogs-toggle-label');
-  if (lab) lab.textContent = catalogsOn ? 'Katalogi' : 'Wszystko';
-}
-updateCatalogsToggle();
 
 function loadCatalogNames() {
   if (demoMode) {
@@ -2782,9 +2786,6 @@ function recordCardHTML(r) {
     r.producer ? `<span style="color:#718096">${r.producer}</span>` : null,
   ].filter(Boolean).join('<br>');
   const cardBorder = r.status === 'wróciło' ? 'card-czerwony' : r.status === 'sprawdzone' ? 'card-żółty' : r.status === 'gotowe' ? 'card-zielony' : r.status === 'out' ? 'card-niebieski' : r.status === 'archiwum' ? 'card-archiwum' : '';
-  const warnBadge = needsTemplate(r)
-    ? `<div class="tile-warn" title="Uwaga: montaż wymaga przygotowania szablonu (dla snap-fix / dystansów) oraz przygotowania dystansów">!</div>`
-    : '';
   // Status klikalny tylko dla zalogowanych, poza trybem druku i zarządzania katalogiem
   const quickStatus = !guestMode && !printSelectMode && !manageMode;
   // Skąd jest eksponat — widoczne przy szukaniu i przy zarządzaniu zawartością katalogu
@@ -2801,7 +2802,6 @@ function recordCardHTML(r) {
     <div class="card-footer">
       <span class="footer-avatar">${r.updatedBy ? getUserAvatar(r.updatedBy) : ''}</span>
       <span class="status-badge ${badgeClass}${quickStatus ? ' badge-clickable' : ''}" style="font-size:0.68rem;padding:3px 10px;margin-top:0"${quickStatus ? ` onclick="event.stopPropagation();openStatusMenu(event,'${r.id}')" title="Kliknij, aby zmienić status"` : ''}>${statusLabel}</span>
-      ${warnBadge}
     </div>`;
   if (manageMode) {
     const on = !!manageSelected[r.id];
@@ -3286,6 +3286,10 @@ function showDetail(id) {
   document.getElementById('d-producer').textContent = r.producer || '—';
   document.getElementById('d-voltage').textContent = r.voltage || '—';
   document.getElementById('d-cable').textContent = r.cableLength || '—';
+
+  // Ostrzeżenie o szablonie/dystansach — dawniej czerwony wykrzyknik na kafelku
+  const warnEl = document.getElementById('d-warn');
+  if (warnEl) warnEl.style.display = needsTemplate(r) ? 'flex' : 'none';
 
   const notesEl = document.getElementById('d-notes');
   if (r.notes) { notesEl.textContent = r.notes; notesEl.style.display = 'block'; }
