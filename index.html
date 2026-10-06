@@ -1479,6 +1479,13 @@
           </div>
         </div>
       </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px solid #edf2f7">
+        <span style="font-size:0.78rem; color:var(--gray); font-weight:600">NA OKŁADKĘ KAFELKA:</span>
+        <div class="seg" id="cover-seg" title="Które zdjęcie ma być widoczne na kafelku i w wydruku QR">
+          <button type="button" class="seg-btn on" data-cover="camera" onclick="setCover('camera')">📷 Zdjęcie</button>
+          <button type="button" class="seg-btn" data-cover="screen" onclick="setCover('screen')">🖥️ Print screen</button>
+        </div>
+      </div>
     </div>
 
     <!-- WYMIARY -->
@@ -1820,6 +1827,18 @@ let currentRecord = null;
 let editingId = null;
 let fairHistory = [];
 let photoData = { camera: null, screen: null };
+let coverChoice = 'camera';   // które zdjęcie trafia na okładkę kafelka
+
+function setCover(which) {
+  coverChoice = which;
+  updateCoverSeg();
+}
+
+function updateCoverSeg() {
+  document.querySelectorAll('#cover-seg .seg-btn').forEach(b => {
+    b.classList.toggle('on', b.getAttribute('data-cover') === coverChoice);
+  });
+}
 let selectedStatus = '';
 let selectedMount = [];
 let selectedLightColors = [];
@@ -2557,8 +2576,15 @@ function renameCatalog(oldName) {
     .catch(e => showToast('Błąd zmiany nazwy: ' + e.message, 'error'));
 }
 
+// Które zdjęcie idzie na okładkę: wybrane w formularzu, a gdy go nie ma — to drugie
+function coverPhotoOf(r) {
+  return r.cover === 'screen'
+    ? (r.photoScreen || r.photoCamera || null)
+    : (r.photoCamera || r.photoScreen || null);
+}
+
 function photoOfRecord(r) {
-  return r.photoCamera || r.photoScreen || null;
+  return coverPhotoOf(r);
 }
 
 // Gdy wszystkie eksponaty w katalogu mają to samo zdjęcie, folder bierze je automatycznie
@@ -2865,7 +2891,7 @@ function recordCardHTML(r) {
   const statusClass = r.status === 'wróciło' ? 'status-czerwony' : r.status === 'sprawdzone' ? 'status-żółty' : r.status === 'gotowe' ? 'status-zielony' : r.status === 'out' ? 'status-niebieski' : r.status === 'archiwum' ? 'status-archiwum' : 'status-brak';
   const badgeClass = r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'out' ? 'badge-niebieski' : r.status === 'archiwum' ? 'badge-archiwum' : '';
   const statusLabel = r.status === 'wróciło' ? 'To Find' : r.status === 'sprawdzone' ? 'Storage' : r.status === 'gotowe' ? 'Ready' : r.status === 'out' ? 'OUT' : r.status === 'archiwum' ? 'Archiwum' : r.status || '—';
-  const cardPhoto = r.photoCamera || r.photoScreen || null;
+  const cardPhoto = coverPhotoOf(r);
   const imgHTML = cardPhoto
     ? `<div class="card-img"><img src="${cardPhoto}" alt="zdjęcie"></div>`
     : `<div class="card-img">📦</div>`;
@@ -3000,6 +3026,8 @@ function showNewForm() {
   editingId = null;
   fairHistory = [];
   photoData = { camera: null, screen: null };
+  coverChoice = 'camera';
+  updateCoverSeg();
   selectedStatus = '';
   selectedMount = [];
   selectedLightColors = [];
@@ -3263,6 +3291,7 @@ async function saveRecord() {
     company,
     photoCamera: photoData.camera || null,
     photoScreen: photoData.screen || null,
+    cover: coverChoice,
     thickness: document.getElementById('f-thickness').value || null,
     width: document.getElementById('f-width').value || null,
     height: document.getElementById('f-height').value || null,
@@ -3438,6 +3467,8 @@ function editCurrentRecord() {
   if (catSel) catSel.value = catalogNames.includes(r.catalog) ? r.catalog : '';
 
   photoData = { camera: r.photoCamera || null, screen: r.photoScreen || null };
+  coverChoice = (r.cover === 'screen') ? 'screen' : 'camera';
+  updateCoverSeg();
   if (r.photoCamera) document.getElementById('preview-camera').innerHTML = `<div class="photo-preview-item" style="height:90px;border-radius:8px;overflow:hidden;position:relative;background:#edf2f7;">
     <img src="${r.photoCamera}" alt="podgląd" style="width:100%;height:100%;object-fit:cover;">
     <button class="photo-remove" onclick="removePhoto('camera')">✕</button>
@@ -3790,8 +3821,8 @@ function drawQRCard(doc, r, qrDataUrl, imgDims) {
   var bottom = CY + CH - m;
 
   var photoBoxH = 58;
-  var blockPhoto = r.photoCamera || r.photoScreen || null;
-  var blockPhotoLabel = r.photoCamera ? 'Zdjecie' : (r.photoScreen ? 'Print screen' : null);
+  var blockPhoto = coverPhotoOf(r);
+  var blockPhotoLabel = !blockPhoto ? null : (blockPhoto === r.photoCamera ? 'Zdjecie' : 'Print screen');
   if (blockPhoto) {
     try {
       var dims = (_preloadedW && _preloadedH) ? {w:_preloadedW, h:_preloadedH} : {w:4, h:3};
@@ -4029,7 +4060,7 @@ function exportQRpdf(mode) {
   showToast(mode === 'print' ? 'Przygotowanie do druku...' : 'Generowanie PDF z QR...', '');
   getQRcanvas(function(qrCanvas) {
     const qrDataUrl = qrCanvas.toDataURL('image/png');
-    const photoSrc = r.photoCamera || r.photoScreen || null;
+    const photoSrc = coverPhotoOf(r);
     loadImageDims(photoSrc).then(function(dims){
       const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
       drawQRCard(doc, r, qrDataUrl, dims);
@@ -4168,7 +4199,7 @@ async function runBatchPrint() {
         var rq = recs[b];
         if (b > 0) doc.addPage();
         var qrq = await makeQRDataUrl(qrTextFor(rq));
-        var dq = await loadImageDims(rq.photoCamera || rq.photoScreen || null);
+        var dq = await loadImageDims(coverPhotoOf(rq));
         drawQRCard(doc, rq, qrq, dq);
       }
     } else { // card
