@@ -252,6 +252,13 @@
   .catalog-card:hover .cat-face { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.15); }
   /* Komplet (jedno logo z części) odróżnia się od grupy kolorem ramki */
   .catalog-card.is-set .cat-face { border-color: var(--yellow); }
+  /* Komplet zaznaczony do wrzucenia w grupę */
+  .catalog-card.cat-selected .cat-face {
+    border-color: var(--blue) !important;
+    box-shadow: 0 0 0 3px rgba(49,130,206,0.28);
+  }
+  .catalog-card .select-check { top: 6px; right: 6px; z-index: 6; }
+  .catalog-card.cat-selected .select-check { background: var(--blue); color: #fff; }
   .catalog-card.is-set .cat-stack { border-color: var(--yellow); }
   .cat-head {
     padding: 10px 12px 6px;
@@ -1123,6 +1130,59 @@
   #tile-tip .tt-mini-dot { width: 7px; height: 7px; flex-shrink: 0; }
   #tile-tip .tt-mini-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #tile-tip .tt-more { margin-top: 7px; text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--gray); }
+
+  /* Miniatury zdjęć otwierają podgląd po kliknięciu */
+  .photo-preview-item img, .detail-photo-wrap img { cursor: zoom-in; }
+
+  /* PODGLĄD ZDJĘCIA NA PEŁNYM EKRANIE */
+  #lightbox {
+    display: none;
+    position: fixed; inset: 0; z-index: 4000;
+    background: rgba(10,12,16,0.94);
+    touch-action: none;
+    overflow: hidden;
+  }
+  #lightbox.show { display: block; }
+  #lightbox .lb-stage {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    cursor: zoom-in;
+  }
+  #lightbox.zoomed .lb-stage { cursor: grab; }
+  #lightbox.dragging .lb-stage { cursor: grabbing; }
+  #lightbox img {
+    max-width: 100%; max-height: 100%;
+    transform-origin: center center;
+    user-select: none; -webkit-user-drag: none;
+    will-change: transform;
+  }
+  #lightbox .lb-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px;
+    background: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0));
+    z-index: 2;
+  }
+  #lightbox .lb-title {
+    color: #e2e8f0; font-size: 0.82rem; font-weight: 700;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #lightbox .lb-btn {
+    width: 38px; height: 38px; flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.3); border-radius: 8px;
+    background: rgba(255,255,255,0.12); color: #fff;
+    font-size: 1rem; font-weight: 700; cursor: pointer; line-height: 1;
+  }
+  #lightbox .lb-btn:hover { background: rgba(255,255,255,0.24); }
+  #lightbox .lb-zoom { color: #e2e8f0; font-size: 0.8rem; font-weight: 700; min-width: 52px; text-align: center; }
+  #lightbox .lb-hint {
+    position: absolute; left: 0; right: 0; bottom: 12px;
+    text-align: center; color: #a0aec0; font-size: 0.72rem;
+    pointer-events: none;
+  }
+  @media (max-width: 600px) {
+    #lightbox .lb-hint { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -1837,6 +1897,21 @@
   </div>
 </div>
 
+<!-- PODGLĄD ZDJĘCIA -->
+<div id="lightbox" class="no-print">
+  <div class="lb-stage" id="lb-stage"><img id="lb-img" alt="podgląd zdjęcia"></div>
+  <div class="lb-bar">
+    <span class="lb-title" id="lb-title">Podgląd</span>
+    <span style="flex:1"></span>
+    <button type="button" class="lb-btn" onclick="lbZoom(-1)" title="Pomniejsz">−</button>
+    <span class="lb-zoom" id="lb-zoom">100%</span>
+    <button type="button" class="lb-btn" onclick="lbZoom(1)" title="Powiększ">+</button>
+    <button type="button" class="lb-btn" onclick="lbReset()" title="Dopasuj do ekranu">⤢</button>
+    <button type="button" class="lb-btn" onclick="closeLightbox()" title="Zamknij (Esc)">✕</button>
+  </div>
+  <div class="lb-hint">Kółko myszy lub +/− przybliża · przeciągnij, żeby przesunąć · podwójny klik dopasowuje</div>
+</div>
+
 <script>
 // ==================== APP STATE ====================
 let db = null;
@@ -2172,7 +2247,16 @@ function renderList(filteredRecords) {
       const cat = (r.catalog && catalogNames.includes(r.catalog)) ? r.catalog : '';
       return cat === '' || cat === currentCatalog;
     });
-    html = list.length ? `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>` : '';
+    // Przy tworzeniu grupy mozna zaznaczyc takze gotowe komplety - grupa obejmie je w calosci
+    let setsHTML = '';
+    if (groupNewMode && newKind === 'group') {
+      const freeSets = catalogNames.filter(n => isSet(n) && !catParent(n));
+      if (freeSets.length) {
+        setsHTML = `<div class="records-grid">${freeSets.map(n =>
+          catalogTileHTML(n, allRecordsOf(n), true)).join('')}</div>`;
+      }
+    }
+    html = setsHTML + (list.length ? `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>` : '');
   } else if (currentCatalog) {
     // W grupie najpierw jej komplety, potem eksponaty przypisane wprost do grupy
     const sets = childSets(currentCatalog);
@@ -2331,6 +2415,7 @@ let manageMode = false;      // tryb ustalania zawartości katalogu
 let groupNewMode = false;    // „Grupuj" — tworzenie katalogu z zaznaczonych kafelków
 let groupNameTouched = false; // czy nazwa została wpisana ręcznie — wtedy nie nadpisujemy jej automatem
 let manageSelected = {};
+let manageSelectedSets = {};  // komplety zaznaczone przy tworzeniu grupy
 let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ustępują wynikom
 // Trzy sposoby ułożenia listy. Po otwarciu strony zawsze rozstrzelone — wszystkie eksponaty bez grup
 //   'flat'   — rozstrzelone: same eksponaty, grupy rozsypane
@@ -2794,7 +2879,7 @@ function catalogImageFor(name, items) {
   return manual || catalogAutoImage(items);
 }
 
-function catalogTileHTML(name, items) {
+function catalogTileHTML(name, items, selectable) {
   const dots = STATUS_DEFS
     .map(s => ({ s, n: items.filter(r => r.status === s.value).length }))
     .filter(x => x.n > 0)
@@ -2812,6 +2897,20 @@ function catalogTileHTML(name, items) {
   const iconHTML = img
     ? `<div class="cat-icon"><img src="${img}" alt="obrazek katalogu"></div>`
     : `<div class="cat-icon">${komplet ? '🧩' : '📁'}</div>`;
+  if (selectable) {
+    const on = !!manageSelectedSets[name];
+    return `<div class="catalog-card${komplet ? ' is-set' : ''}${on ? ' cat-selected' : ''}" data-cat="${escAttr(name)}" onclick="toggleSetSelect('${name.replace(/'/g,"\\'")}')" title="Zaznacz komplet, zeby wszedl do grupy">
+      <div class="cat-stack s1"></div>
+      <div class="cat-stack s2"></div>
+      <div class="select-check">${on ? '✓' : ''}</div>
+      <div class="cat-face">
+        <div class="cat-head">${escAttr(groupLabelOf(name))}</div>
+        ${iconHTML}
+        <div class="cat-body">${szt}</div>
+        <div class="cat-footer">${dots || 'pusty'}</div>
+      </div>
+    </div>`;
+  }
   return `<div class="catalog-card${komplet ? ' is-set' : ''}" data-cat="${escAttr(name)}" onclick="openCatalog('${name.replace(/'/g,"\\'")}')" title="${komplet ? 'Otwórz komplet' : 'Otwórz grupę'}">
     <div class="cat-stack s1"></div>
     <div class="cat-stack s2"></div>
@@ -3014,7 +3113,8 @@ function toggleManageSelect(id) {
 function updateAssignBar() {
   const n = Object.keys(manageSelected).length;
   if (groupNewMode) {
-    document.getElementById('group-count').textContent = n;
+    const nSets = Object.keys(manageSelectedSets).length;
+    document.getElementById('group-count').textContent = nSets ? (n + ' + ' + nSets + ' kpl.') : n;
     if (!groupNameTouched) applyAutoGroupName();
     return;
   }
@@ -3022,9 +3122,18 @@ function updateAssignBar() {
   document.getElementById('assign-count').textContent = n;
 }
 
+// Zaznaczenie gotowego kompletu, który ma wejść do tworzonej grupy
+function toggleSetSelect(name) {
+  if (manageSelectedSets[name]) delete manageSelectedSets[name]; else manageSelectedSets[name] = true;
+  applyFilters();
+  updateAssignBar();
+}
+
 // Nazwa z zaznaczonych kafelków: firma i jej numery po przecinku, np. "ACME 4, 12"
 function autoGroupName() {
-  const sel = records.filter(r => manageSelected[r.id]);
+  let sel = records.filter(r => manageSelected[r.id]);
+  // Zaznaczony komplet wnosi do nazwy numery swoich części
+  Object.keys(manageSelectedSets).forEach(k => { sel = sel.concat(directRecordsOf(k)); });
   if (!sel.length) return '';
   const byCompany = new Map();
   sel.forEach(r => {
@@ -3053,13 +3162,16 @@ function regenGroupName() {
 // Rodzaj nowego kontenera wybierany w pasku tworzenia
 let newKind = 'set';
 
-function setNewKind(kind) {
+function setNewKind(kind, skipRender) {
   newKind = kind;
+  // Komplet składa się z pojedynczych części, więc zaznaczone komplety przestają obowiązywać
+  if (kind !== 'group') manageSelectedSets = {};
   document.querySelectorAll('#newkind-seg .seg-btn').forEach(b => {
     b.classList.toggle('on', b.getAttribute('data-kind') === kind);
   });
   const btn = document.getElementById('group-save-btn');
   if (btn) btn.textContent = (kind === 'set') ? '✓ Utwórz komplet' : '✓ Utwórz grupę';
+  if (!skipRender && groupNewMode) { applyFilters(); updateAssignBar(); }
 }
 
 // „Grupuj" z menu: zaznacz kafelki, nadaj wspólną nazwę, zatwierdź
@@ -3070,27 +3182,31 @@ function startGroupNew() {
   manageMode = true;
   groupNewMode = true;
   manageSelected = {};
+  manageSelectedSets = {};
   document.getElementById('assign-bar').style.display = 'none';
   document.getElementById('group-bar').style.display = 'flex';
   document.getElementById('group-name-input').value = '';
   groupNameTouched = false;
-  setNewKind('set');
+  setNewKind('set', true);
   applyFilters();
   updateAssignBar();
-  showToast('Widać tylko eksponaty spoza katalogów. Zaznacz kafelki — nazwa ułoży się sama.', '');
+  showToast('Zaznacz kafelki — nazwa ułoży się sama. Przy grupie możesz zaznaczyć też gotowe komplety.', '');
 }
 
 function cancelGroupNew() {
   manageMode = false;
   groupNewMode = false;
   manageSelected = {};
+  manageSelectedSets = {};
   document.getElementById('group-bar').style.display = 'none';
   applyFilters();
 }
 
 function saveGroupNew() {
   const ids = Object.keys(manageSelected);
-  if (!ids.length) { showToast('Nie zaznaczono żadnego kafelka', 'error'); return; }
+  // Do grupy mogą wejść gotowe komplety — wtedy same eksponaty nie są wymagane
+  const setIds = (newKind === 'group') ? Object.keys(manageSelectedSets).filter(k => catalogNames.includes(k)) : [];
+  if (!ids.length && !setIds.length) { showToast('Nie zaznaczono żadnego kafelka', 'error'); return; }
   const input = document.getElementById('group-name-input');
   const name = input.value.trim();
   if (!name) { showToast('Podaj wspólną nazwę katalogu', 'error'); input.focus(); return; }
@@ -3100,6 +3216,11 @@ function saveGroupNew() {
 
   const finish = () => {
     targets.forEach(r => r.catalog = name);
+    // Komplet nie przenosi swoich części — wskazuje tylko grupę, w której leży
+    setIds.forEach(k => {
+      if (!catalogMeta[k]) catalogMeta[k] = {};
+      catalogMeta[k].parent = name;
+    });
     if (!catalogNames.includes(name)) {
       catalogNames.push(name);
       catalogNames.sort((a, b) => a.localeCompare(b, 'pl'));
@@ -3116,16 +3237,18 @@ function saveGroupNew() {
       localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
       localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
     }
-    logActivity('zgrupował(a) ' + ids.length + ' eksponatów w katalogu ' + name, {});
+    logActivity('zgrupował(a) ' + ids.length + ' eksponatów i ' + setIds.length + ' kompletów w katalogu ' + name, {});
     populateCatalogSelect();
     renderCatalogManager();
     manageMode = false;
     groupNewMode = false;
     manageSelected = {};
+    manageSelectedSets = {};
     document.getElementById('group-bar').style.display = 'none';
     openCatalog(name);
     const co = (newKind === 'set') ? 'Komplet' : 'Grupa';
-    showToast((existed ? 'Dodano do: ' : co + ' utworzona: ') + name + ' (' + ids.length + ') ✅', 'success');
+    const ile = ids.length + (setIds.length ? ' szt. + ' + setIds.length + ' kpl.' : '');
+    showToast((existed ? 'Dodano do: ' : co + ' utworzona: ') + name + ' (' + ile + ') ✅', 'success');
   };
 
   if (demoMode) { finish(); return; }
@@ -3139,6 +3262,9 @@ function saveGroupNew() {
       ));
   catReady
     .then(() => Promise.all(targets.map(r => db.collection('records').doc(r.id).update({ catalog: name }))))
+    .then(() => Promise.all(setIds.map(k => catalogDocs[k]
+      ? db.collection('catalogs').doc(catalogDocs[k]).update({ parent: name })
+      : null)))
     .then(finish)
     .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
 }
@@ -5532,6 +5658,150 @@ window.onload = async () => {
     showToast('Błąd połączenia: ' + e.message, 'error');
   }
 };
+
+// ==================== PODGLĄD ZDJĘCIA (powiększanie) ====================
+// Kliknięcie w miniaturę zdjęcia otwiera je na pełnym ekranie, żeby dało się
+// obejrzeć detale. Skala 1 = zdjęcie dopasowane do ekranu.
+let lbScale = 1, lbX = 0, lbY = 0;
+let lbDrag = null, lbPinch = null;
+
+function openLightbox(src, title) {
+  const box = document.getElementById('lightbox');
+  const img = document.getElementById('lb-img');
+  if (!box || !img || !src) return;
+  img.src = src;
+  document.getElementById('lb-title').textContent = title || 'Podgląd';
+  box.classList.add('show');
+  lbReset();
+}
+
+function closeLightbox() {
+  const box = document.getElementById('lightbox');
+  if (!box) return;
+  box.classList.remove('show', 'zoomed', 'dragging');
+  document.getElementById('lb-img').src = '';
+  lbDrag = null; lbPinch = null;
+}
+
+function lbApply() {
+  const img = document.getElementById('lb-img');
+  const box = document.getElementById('lightbox');
+  if (!img) return;
+  lbScale = Math.min(Math.max(lbScale, 1), 8);
+  if (lbScale === 1) { lbX = 0; lbY = 0; }
+  img.style.transform = 'translate(' + lbX + 'px,' + lbY + 'px) scale(' + lbScale + ')';
+  document.getElementById('lb-zoom').textContent = Math.round(lbScale * 100) + '%';
+  box.classList.toggle('zoomed', lbScale > 1);
+}
+
+function lbReset() { lbScale = 1; lbX = 0; lbY = 0; lbApply(); }
+
+function lbZoom(dir) {
+  lbScale = dir > 0 ? lbScale * 1.4 : lbScale / 1.4;
+  lbApply();
+}
+
+// Przybliżanie w punkcie kursora, żeby detal nie uciekał z ekranu
+function lbZoomAt(factor, cx, cy) {
+  const img = document.getElementById('lb-img');
+  const r = img.getBoundingClientRect();
+  const mx = cx - (r.left + r.width / 2);
+  const my = cy - (r.top + r.height / 2);
+  const before = lbScale;
+  lbScale = Math.min(Math.max(lbScale * factor, 1), 8);
+  const k = lbScale / before;
+  lbX = lbX - mx * (k - 1);
+  lbY = lbY - my * (k - 1);
+  lbApply();
+}
+
+(function initLightbox() {
+  // Klik w miniaturę: formularz edycji oraz karta eksponatu
+  document.addEventListener('click', function (e) {
+    const img = e.target.closest('#preview-camera img, #preview-screen img, .detail-photo-wrap img');
+    if (!img) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const inForm = img.closest('#preview-camera') ? '📷 Zdjęcie z aparatu'
+      : img.closest('#preview-screen') ? '🖥️ Print screen'
+      : (img.closest('.detail-photo-wrap').querySelector('.detail-photo-label') || {}).textContent;
+    openLightbox(img.src, inForm);
+  }, true);
+
+  const box = document.getElementById('lightbox');
+  const stage = document.getElementById('lb-stage');
+  if (!box || !stage) return;
+
+  // Kliknięcie w tło zamyka, w zdjęcie przybliża
+  stage.addEventListener('click', function (e) {
+    if (e.target.id === 'lb-img') {
+      if (lbScale === 1) lbZoomAt(2, e.clientX, e.clientY);
+    } else {
+      closeLightbox();
+    }
+  });
+  stage.addEventListener('dblclick', function (e) { e.preventDefault(); lbReset(); });
+
+  box.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    lbZoomAt(e.deltaY < 0 ? 1.18 : 1 / 1.18, e.clientX, e.clientY);
+  }, { passive: false });
+
+  // Przeciąganie myszą
+  stage.addEventListener('mousedown', function (e) {
+    if (lbScale === 1 || e.target.id !== 'lb-img') return;
+    e.preventDefault();
+    lbDrag = { x: e.clientX - lbX, y: e.clientY - lbY };
+    box.classList.add('dragging');
+  });
+  window.addEventListener('mousemove', function (e) {
+    if (!lbDrag) return;
+    lbX = e.clientX - lbDrag.x; lbY = e.clientY - lbDrag.y; lbApply();
+  });
+  window.addEventListener('mouseup', function () {
+    lbDrag = null;
+    box.classList.remove('dragging');
+  });
+
+  // Dotyk: jeden palec przesuwa, dwa palce skalują
+  stage.addEventListener('touchstart', function (e) {
+    if (e.touches.length === 2) {
+      const [a, b] = e.touches;
+      lbPinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), s: lbScale };
+      lbDrag = null;
+    } else if (e.touches.length === 1 && lbScale > 1) {
+      lbDrag = { x: e.touches[0].clientX - lbX, y: e.touches[0].clientY - lbY };
+    }
+  }, { passive: true });
+
+  stage.addEventListener('touchmove', function (e) {
+    if (lbPinch && e.touches.length === 2) {
+      e.preventDefault();
+      const [a, b] = e.touches;
+      const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      lbScale = lbPinch.s * (d / lbPinch.d);
+      lbApply();
+    } else if (lbDrag && e.touches.length === 1) {
+      e.preventDefault();
+      lbX = e.touches[0].clientX - lbDrag.x;
+      lbY = e.touches[0].clientY - lbDrag.y;
+      lbApply();
+    }
+  }, { passive: false });
+
+  stage.addEventListener('touchend', function (e) {
+    if (e.touches.length < 2) lbPinch = null;
+    if (e.touches.length === 0) lbDrag = null;
+  }, { passive: true });
+
+  document.addEventListener('keydown', function (e) {
+    if (!box.classList.contains('show')) return;
+    if (e.key === 'Escape') closeLightbox();
+    else if (e.key === '+' || e.key === '=') lbZoom(1);
+    else if (e.key === '-') lbZoom(-1);
+    else if (e.key === '0') lbReset();
+  });
+})();
 </script>
 </body>
 </html>
