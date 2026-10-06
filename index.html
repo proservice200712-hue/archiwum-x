@@ -2354,6 +2354,7 @@ function loadCatalogNames() {
       const meta = {};
       if (c.image) meta.image = c.image;
       if (c.gnum) meta.gnum = c.gnum;
+      if (c.custom) meta.custom = true;
       if (Object.keys(meta).length) catalogMeta[c.name] = meta;
     });
     ensureGroupNumbers(snap.docs);
@@ -2385,6 +2386,32 @@ function groupTagOf(r) {
   if (!r.catalog || !catalogNames.includes(r.catalog)) return '';
   const g = groupNumOf(r.catalog);
   return g ? 'G' + g : '';
+}
+
+// Etykieta grupy: najpierw firma, potem numer grupy, na końcu numery eksponatów,
+// np. "AFF Republic G21 20, 33". Liczona z zawartości, więc dodanie eksponatu
+// do grupy od razu dopisuje jego numer.
+function groupLabelOf(name) {
+  const g = groupNumOf(name);
+  const tag = g ? 'G' + g : '';
+  const meta = catalogMeta[name] || {};
+  // Nazwa nadana ręcznie zostaje nietknięta — dopisujemy tylko numer grupy
+  if (meta.custom) return name + (tag ? ' ' + tag : '');
+
+  const items = records.filter(r => (r.catalog || '') === name && r.status !== 'archiwum');
+  if (!items.length) return name + (tag ? ' ' + tag : '');
+
+  const byCompany = new Map();
+  items.forEach(r => {
+    const c = (r.company || '').trim() || 'Bez firmy';
+    if (!byCompany.has(c)) byCompany.set(c, []);
+    if (r.number) byCompany.get(c).push(r.number);
+  });
+  return [...byCompany.entries()].map(([c, nums], i) => {
+    nums.sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+    const head = c + (i === 0 && tag ? ' ' + tag : '');
+    return nums.length ? head + ' ' + nums.join(', ') : head;
+  }).join(' + ');
 }
 
 // Pełna nazwa eksponatu: firma + grupa + numer, np. "AFF Republic G1 #19"
@@ -2419,7 +2446,7 @@ function populateCatalogSelect() {
   if (!el) return;
   const cur = el.value;
   el.innerHTML = '<option value="">— bez katalogu —</option>' +
-    catalogNames.map(n => `<option value="${n}" ${cur === n ? 'selected' : ''}>${n}</option>`).join('');
+    catalogNames.map(n => `<option value="${escAttr(n)}" ${cur === n ? 'selected' : ''}>${escAttr(groupLabelOf(n))}</option>`).join('');
 }
 
 function showCatalogManager() {
@@ -2443,7 +2470,7 @@ function renderCatalogManager() {
     const tag = document.createElement('div');
     tag.className = 'company-tag';
     const esc = n.replace(/'/g, "\\'");
-    tag.innerHTML = `${n} (${cnt})
+    tag.innerHTML = `${escAttr(groupLabelOf(n))} (${cnt})
       <span class="del" onclick="renameCatalog('${esc}')" title="Zmień nazwę" style="margin-left:6px">✏️</span>
       <span class="del" onclick="removeCatalogName('${esc}')" title="Usuń katalog">✕</span>`;
     el.appendChild(tag);
@@ -2615,7 +2642,8 @@ function renameCatalog(oldName) {
     catalogNames = catalogNames.filter(n => n !== oldName);
     catalogNames.push(name);
     catalogNames.sort((a, b) => a.localeCompare(b, 'pl'));
-    if (catalogMeta[oldName]) { catalogMeta[name] = catalogMeta[oldName]; delete catalogMeta[oldName]; }
+    catalogMeta[name] = Object.assign({}, catalogMeta[oldName] || {}, { custom: true });
+    if (oldName !== name) delete catalogMeta[oldName];
     if (catalogDocs[oldName]) { catalogDocs[name] = catalogDocs[oldName]; delete catalogDocs[oldName]; }
     if (currentCatalog === oldName) currentCatalog = name;
     if (demoMode) {
@@ -2633,7 +2661,7 @@ function renameCatalog(oldName) {
   if (demoMode) { finish(); return; }
   Promise.all(inCat.map(r => db.collection('records').doc(r.id).update({ catalog: name })))
     .then(() => db.collection('catalogs').where('name', '==', oldName).get())
-    .then(snap => Promise.all(snap.docs.map(d => d.ref.update({ name }))))
+    .then(snap => Promise.all(snap.docs.map(d => d.ref.update({ name, custom: true }))))
     .then(finish)
     .catch(e => showToast('Błąd zmiany nazwy: ' + e.message, 'error'));
 }
@@ -2678,7 +2706,7 @@ function catalogTileHTML(name, items) {
     <div class="cat-stack s1"></div>
     <div class="cat-stack s2"></div>
     <div class="cat-face">
-      <div class="cat-head">${groupNumOf(name) ? 'G' + groupNumOf(name) + ' · ' : ''}${name}</div>
+      <div class="cat-head">${escAttr(groupLabelOf(name))}</div>
       ${iconHTML}
       <div class="cat-body">${szt}</div>
       <div class="cat-footer">${dots || 'pusty'}</div>
@@ -2707,8 +2735,7 @@ function updateCatalogBar() {
   if (!bar) return;
   if (!currentCatalog || manageMode) { bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
-  document.getElementById('cat-bar-name').textContent =
-    (groupNumOf(currentCatalog) ? 'G' + groupNumOf(currentCatalog) + ' · ' : '') + currentCatalog;
+  document.getElementById('cat-bar-name').textContent = groupLabelOf(currentCatalog);
   document.getElementById('cat-bar-count').textContent =
     records.filter(r => (r.catalog || '') === currentCatalog && r.status !== 'archiwum').length;
 }
@@ -4642,7 +4669,7 @@ function catalogPreviewHTML(name, items) {
     .map(x => `<span style="white-space:nowrap">${x.s.icon} ${x.n}</span>`)
     .join('&nbsp;&nbsp;');
   return `<div class="tt-head">
-      <span class="tt-name">\u{1F4C1} ${escAttr(name)}</span>
+      <span class="tt-name">\u{1F4C1} ${escAttr(groupLabelOf(name))}</span>
       <span style="white-space:nowrap">${items.length === 1 ? '1 szt.' : items.length + ' szt.'}</span>
     </div>
     <div class="tt-body">
