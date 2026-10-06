@@ -1263,11 +1263,11 @@
 <div class="modal-overlay" id="qrMenuModal" style="display:none">
   <div class="modal" style="max-width:430px">
     <h2>🖨️ Druk kodów QR / kart</h2>
-    <p style="font-size:0.82rem;color:var(--gray);margin-bottom:16px">Wybierz rodzaj wydruku, potem zaznacz dowolną liczbę kafelków na liście i kliknij „Drukuj”.</p>
+    <p style="font-size:0.82rem;color:var(--gray);margin-bottom:16px" id="qr-menu-hint">Wybierz rodzaj wydruku, potem zaznacz dowolną liczbę kafelków na liście i kliknij „Drukuj”.</p>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <button class="qr-opt-btn" onclick="startPrintSelect('card')">Wydruk karty PDF<br><span>pełna karta eksponatu — 1 na stronę A4</span></button>
-      <button class="qr-opt-btn" onclick="startPrintSelect('qr')">Wydruk eksportu QR PDF<br><span>karta A5 z QR — 1 na stronę A4</span></button>
-      <button class="qr-opt-btn" onclick="startPrintSelect('mini')">Mini QR<br><span>sam QR 2 cm + podpis (nazwa + numer) — wiele na A4</span></button>
+      <button class="qr-opt-btn" onclick="chooseQRMode('card')">Wydruk karty PDF<br><span>pełna karta eksponatu — 1 na stronę A4</span></button>
+      <button class="qr-opt-btn" onclick="chooseQRMode('qr')">Wydruk eksportu QR PDF<br><span>karta A5 z QR — 1 na stronę A4</span></button>
+      <button class="qr-opt-btn" onclick="chooseQRMode('mini')">Mini QR<br><span>sam QR 2 cm + podpis (nazwa + numer) — wiele na A4</span></button>
     </div>
     <div style="margin-top:18px;text-align:right">
       <button class="btn btn-gray" onclick="closeQRMenu()">Zamknij</button>
@@ -1372,6 +1372,8 @@
       <button class="btn btn-gray btn-sm" onclick="renameCatalog(currentCatalog)" title="Zmień nazwę katalogu">✏️ Nazwa</button>
       <button class="btn btn-gray btn-sm" onclick="showCatalogImageModal(currentCatalog)" title="Nadaj obrazek katalogowi">🖼️ Obrazek</button>
       <button class="btn btn-primary btn-sm" onclick="startManageCatalog()">📋 Zawartość katalogu</button>
+      <button class="btn btn-success btn-sm" onclick="openGroupPrintMenu()"
+        title="Wydrukuj wszystkie eksponaty z tej grupy">🖨️ Drukuj grupę</button>
       <button class="btn btn-danger btn-sm" onclick="removeCatalogName(currentCatalog)"
         title="Usuń grupę — eksponaty wrócą na główną listę">🗑️ Usuń grupę</button>
     </span>
@@ -1628,8 +1630,14 @@
     <!-- UWAGI -->
     <div class="form-section">
       <div class="section-title">Uwagi / Informacje</div>
-      <div class="form-group">
-        <textarea id="f-notes" placeholder="Dodatkowe informacje, uwagi, spostrzeżenia..."></textarea>
+      <div id="notes-list" style="margin-bottom:10px"></div>
+      <div class="form-group" style="margin-bottom:0">
+        <div style="display:flex; gap:8px; align-items:flex-start">
+          <textarea id="f-notes" placeholder="Dopisz uwagę — po dodaniu dostanie dzisiejszą datę..."
+            style="flex:1; min-height:60px"></textarea>
+          <button type="button" class="btn btn-primary btn-sm" onclick="addNoteEntry()"
+            style="white-space:nowrap">+ Dodaj</button>
+        </div>
       </div>
     </div>
 
@@ -2343,13 +2351,67 @@ function loadCatalogNames() {
     snap.docs.forEach(d => {
       const c = d.data();
       catalogDocs[c.name] = d.id;
-      if (c.image) catalogMeta[c.name] = { image: c.image };
+      const meta = {};
+      if (c.image) meta.image = c.image;
+      if (c.gnum) meta.gnum = c.gnum;
+      if (Object.keys(meta).length) catalogMeta[c.name] = meta;
     });
+    ensureGroupNumbers(snap.docs);
     populateCatalogSelect();
     renderCatalogManager();
     if (currentCatalog && !catalogNames.includes(currentCatalog)) currentCatalog = null;
     if (!manageMode) applyFilters();
   }, err => console.log('Catalogs load error:', err));
+}
+
+// ==================== NUMERY GRUP (G1, G2, ...) ====================
+// Numer nadawany jest raz i zapisany przy grupie, zeby nie zmienial sie po usunieciu innej grupy.
+function groupNumOf(name) {
+  const m = catalogMeta[name];
+  return (m && m.gnum) ? m.gnum : null;
+}
+
+function nextGroupNumber() {
+  let max = 0;
+  Object.keys(catalogMeta).forEach(n => {
+    const g = catalogMeta[n] && catalogMeta[n].gnum;
+    if (g && g > max) max = g;
+  });
+  return max + 1;
+}
+
+// Znacznik grupy eksponatu, np. "G1" — pusty, gdy eksponat nie należy do grupy
+function groupTagOf(r) {
+  if (!r.catalog || !catalogNames.includes(r.catalog)) return '';
+  const g = groupNumOf(r.catalog);
+  return g ? 'G' + g : '';
+}
+
+// Pełna nazwa eksponatu: firma + grupa + numer, np. "AFF Republic G1 #19"
+function recordTitleOf(r) {
+  const tag = groupTagOf(r);
+  return (r.company || '—') + (tag ? ' ' + tag : '') + (r.number ? ' #' + r.number : '');
+}
+
+// Grupy zalożone przed wprowadzeniem numeracji dostają numery jednorazowo:
+// najstarsze najniższe. Istniejących numerów nigdy nie przenumerowujemy.
+let gnumFillStarted = false;
+function ensureGroupNumbers(docs) {
+  if (demoMode || gnumFillStarted) return;
+  const missing = docs.filter(d => !d.data().gnum);
+  if (!missing.length) return;
+  gnumFillStarted = true;
+  let next = 1;
+  docs.forEach(d => { const g = d.data().gnum; if (g && g >= next) next = g + 1; });
+  missing.sort((a, b) => {
+    const ta = (a.data().created && a.data().created.seconds) || 0;
+    const tb = (b.data().created && b.data().created.seconds) || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a.data().name || '').localeCompare(String(b.data().name || ''), 'pl');
+  });
+  Promise.all(missing.map(d => d.ref.update({ gnum: next++ })))
+    .then(() => showToast('Nadano numery grup (' + missing.length + ') ✅', 'success'))
+    .catch(e => console.log('Blad nadawania numerow grup:', e));
 }
 
 function populateCatalogSelect() {
@@ -2401,7 +2463,7 @@ function addCatalogFromManager() {
     renderCatalogManager();
     applyFilters();
   } else {
-    db.collection('catalogs').add({ name, created: firebase.firestore.FieldValue.serverTimestamp() })
+    db.collection('catalogs').add({ name, gnum: nextGroupNumber(), created: firebase.firestore.FieldValue.serverTimestamp() })
       .catch(e => showToast('Błąd: ' + e.message, 'error'));
   }
   showToast('Katalog dodany! ✅', 'success');
@@ -2616,7 +2678,7 @@ function catalogTileHTML(name, items) {
     <div class="cat-stack s1"></div>
     <div class="cat-stack s2"></div>
     <div class="cat-face">
-      <div class="cat-head">${name}</div>
+      <div class="cat-head">${groupNumOf(name) ? 'G' + groupNumOf(name) + ' · ' : ''}${name}</div>
       ${iconHTML}
       <div class="cat-body">${szt}</div>
       <div class="cat-footer">${dots || 'pusty'}</div>
@@ -2645,7 +2707,8 @@ function updateCatalogBar() {
   if (!bar) return;
   if (!currentCatalog || manageMode) { bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
-  document.getElementById('cat-bar-name').textContent = currentCatalog;
+  document.getElementById('cat-bar-name').textContent =
+    (groupNumOf(currentCatalog) ? 'G' + groupNumOf(currentCatalog) + ' · ' : '') + currentCatalog;
   document.getElementById('cat-bar-count').textContent =
     records.filter(r => (r.catalog || '') === currentCatalog && r.status !== 'archiwum').length;
 }
@@ -2755,8 +2818,11 @@ function saveGroupNew() {
       catalogNames.sort((a, b) => a.localeCompare(b, 'pl'));
     }
     if (demoMode) {
+      if (!catalogMeta[name]) catalogMeta[name] = {};
+      if (!catalogMeta[name].gnum) catalogMeta[name].gnum = nextGroupNumber();
       localStorage.setItem('archivum_records', JSON.stringify(records));
       localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
+      localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
     }
     logActivity('zgrupował(a) ' + ids.length + ' eksponatów w katalogu ' + name, {});
     populateCatalogSelect();
@@ -2772,7 +2838,7 @@ function saveGroupNew() {
   if (demoMode) { finish(); return; }
   const catReady = existed
     ? Promise.resolve()
-    : db.collection('catalogs').add({ name, created: firebase.firestore.FieldValue.serverTimestamp() });
+    : db.collection('catalogs').add({ name, gnum: nextGroupNumber(), created: firebase.firestore.FieldValue.serverTimestamp() });
   catReady
     .then(() => Promise.all(targets.map(r => db.collection('records').doc(r.id).update({ catalog: name }))))
     .then(finish)
@@ -2911,7 +2977,7 @@ function recordCardHTML(r) {
     ? `<div class="cat-hint" title="Katalog: ${r.catalog}">📁 ${r.catalog}</div>`
     : '';
   const inner = `
-    <div class="card-header ${statusClass}">${r.company || '—'}${nr}</div>
+    <div class="card-header ${statusClass}">${recordTitleOf(r)}</div>
     ${imgHTML}
     <div class="card-body">
       ${catHint}
@@ -3026,6 +3092,8 @@ function showNewForm() {
   editingId = null;
   fairHistory = [];
   photoData = { camera: null, screen: null };
+  notesHistory = [];
+  renderNotesList();
   coverChoice = 'camera';
   updateCoverSeg();
   selectedStatus = '';
@@ -3216,6 +3284,50 @@ function removePhoto(type) {
   document.getElementById('preview-' + type).innerHTML = '';
 }
 
+// ==================== UWAGI Z DATAMI ====================
+let notesHistory = [];   // [{ text, date }] — każda uwaga dostaje datę w chwili dopisania
+
+function addNoteEntry() {
+  const el = document.getElementById('f-notes');
+  const val = el.value.trim();
+  if (!val) return;
+  notesHistory.push({ text: val, date: new Date().toLocaleDateString('pl-PL') });
+  el.value = '';
+  renderNotesList();
+}
+
+function removeNoteEntry(i) {
+  notesHistory.splice(i, 1);
+  renderNotesList();
+}
+
+function renderNotesList() {
+  const el = document.getElementById('notes-list');
+  if (!el) return;
+  if (!notesHistory.length) {
+    el.innerHTML = '<em style="color:#a0aec0;font-size:0.82rem">Brak uwag</em>';
+    return;
+  }
+  el.innerHTML = notesHistory.map((n, i) => `
+    <div class="history-item" style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div style="flex:1;min-width:0">
+        <span class="history-date">${escAttr(n.date || 'bez daty')}</span><br>${escAttr(n.text)}
+      </div>
+      <button type="button" class="btn btn-gray btn-sm" onclick="removeNoteEntry(${i})">✕</button>
+    </div>`).join('');
+}
+
+// Uwagi złożone w jeden tekst — do karty PDF, chmurki i starszych odczytów pola `notes`
+function notesToText(list) {
+  return (list || []).map(n => (n.date ? n.date + ': ' : '') + n.text).join('\n');
+}
+
+// Stare rekordy miały jedną uwagę bez daty — wczytujemy ją jako pierwszy wpis
+function notesListOf(r) {
+  if (Array.isArray(r.notesList) && r.notesList.length) return r.notesList;
+  return r.notes ? [{ text: r.notes, date: '' }] : [];
+}
+
 function addFairEntry() {
   const val = document.getElementById('f-fair-name').value.trim();
   if (!val) return;
@@ -3245,6 +3357,10 @@ function removeFairEntry(i) {
 }
 
 async function saveRecord() {
+  // Uwaga wpisana, ale nie dopisana przyciskiem — nie przepada
+  const pendingNote = document.getElementById('f-notes');
+  if (pendingNote && pendingNote.value.trim()) addNoteEntry();
+
   const company = document.getElementById('f-company').value === '__other'
     ? document.getElementById('f-company-other').value.trim()
     : document.getElementById('f-company').value;
@@ -3306,7 +3422,8 @@ async function saveRecord() {
       : document.getElementById('f-producer').value,
     voltage: document.getElementById('f-voltage').value,
     cableLength: document.getElementById('f-cable').value,
-    notes: document.getElementById('f-notes').value,
+    notesList: notesHistory.map(n => ({ text: n.text, date: n.date || '' })),
+    notes: notesToText(notesHistory),
     fairHistory: fairHistory,
     catalog: document.getElementById('f-catalog').value || '',
     updatedAt: new Date().toISOString(),
@@ -3394,7 +3511,7 @@ function showDetail(id) {
     photosEl.innerHTML = '<div style="padding:32px;text-align:center;color:#a0aec0;font-size:2rem;grid-column:1/-1">📦</div>';
   }
 
-  document.getElementById('d-company').textContent = (r.number ? '#' + r.number + '  ' : '') + (r.company || '—');
+  document.getElementById('d-company').textContent = recordTitleOf(r);
 
   const badgeEl = document.getElementById('d-status-badge');
   badgeEl.textContent = r.status === 'wróciło' ? '🔴 To Find' : r.status === 'sprawdzone' ? '🟡 Storage' : r.status === 'gotowe' ? '🟢 Ready' : r.status === 'out' ? '🔵 OUT' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
@@ -3414,8 +3531,15 @@ function showDetail(id) {
   if (warnEl) warnEl.style.display = needsTemplate(r) ? 'flex' : 'none';
 
   const notesEl = document.getElementById('d-notes');
-  if (r.notes) { notesEl.textContent = r.notes; notesEl.style.display = 'block'; }
-  else notesEl.style.display = 'none';
+  const nl = notesListOf(r);
+  if (nl.length) {
+    notesEl.innerHTML = nl.map(n =>
+      `<div style="margin-bottom:8px"><span class="history-date">${escAttr(n.date || 'bez daty')}</span><br>${escAttr(n.text)}</div>`
+    ).join('');
+    notesEl.style.display = 'block';
+  } else {
+    notesEl.style.display = 'none';
+  }
 
   // QR
   document.getElementById('qrcode').innerHTML = '';
@@ -3486,7 +3610,9 @@ function editCurrentRecord() {
   const editUnitSel = document.getElementById('f-dim-unit');
   editUnitSel.value = r.dimUnit || 'cm';
   editUnitSel.dataset.prev = r.dimUnit || 'cm';
-  document.getElementById('f-notes').value = r.notes || '';
+  notesHistory = notesListOf(r).map(n => ({ text: n.text, date: n.date || '' }));
+  renderNotesList();
+  document.getElementById('f-notes').value = '';
 
   if (r.status) {
     selectedStatus = r.status;
@@ -4094,8 +4220,42 @@ function selectedTotal() {
   return n;
 }
 
-function openQRMenu() { document.getElementById('qrMenuModal').style.display = 'flex'; }
-function closeQRMenu() { document.getElementById('qrMenuModal').style.display = 'none'; }
+function openQRMenu() {
+  printGroupTarget = null;
+  const hint = document.getElementById('qr-menu-hint');
+  if (hint) hint.textContent = 'Wybierz rodzaj wydruku, potem zaznacz dowoln\u0105 liczb\u0119 kafelk\u00f3w na li\u015bcie i kliknij \u201eDrukuj\u201d.';
+  document.getElementById('qrMenuModal').style.display = 'flex';
+}
+
+function closeQRMenu() {
+  printGroupTarget = null;
+  document.getElementById('qrMenuModal').style.display = 'none';
+}
+
+// „Drukuj grupę" — ten sam wybór formatu, ale PDF powstaje od razu z całej grupy
+let printGroupTarget = null;
+
+function openGroupPrintMenu() {
+  if (!currentCatalog) return;
+  printGroupTarget = currentCatalog;
+  const n = records.filter(r => (r.catalog || '') === currentCatalog && r.status !== 'archiwum').length;
+  const hint = document.getElementById('qr-menu-hint');
+  if (hint) hint.textContent = 'Ca\u0142a grupa \u201e' + currentCatalog + '\u201d (' + n + ' szt.) \u2014 wybierz rodzaj wydruku, PDF powstanie od razu.';
+  document.getElementById('qrMenuModal').style.display = 'flex';
+}
+
+function chooseQRMode(mode) {
+  if (printGroupTarget) {
+    const name = printGroupTarget;
+    printGroupTarget = null;
+    document.getElementById('qrMenuModal').style.display = 'none';
+    const recs = records.filter(r => (r.catalog || '') === name && r.status !== 'archiwum');
+    const tag = groupNumOf(name) ? 'G' + groupNumOf(name) + '_' : '';
+    generatePrintPdf(recs, mode, 'Grupa_' + tag + pl(name));
+    return;
+  }
+  startPrintSelect(mode);
+}
 
 function startPrintSelect(mode) {
   closeQRMenu();
@@ -4183,6 +4343,13 @@ async function runBatchPrint() {
   if (!recs.length) { showToast('Nie zaznaczono zadnego kafelka', 'error'); return; }
   var btn = document.getElementById('select-print-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Generowanie...'; }
+  await generatePrintPdf(recs, printMode);
+  updateSelectBar();
+}
+
+// Wspolne generowanie PDF: druk wsadowy z zaznaczenia i druk calej grupy
+async function generatePrintPdf(recs, printMode, fileLabel) {
+  if (!recs.length) { showToast('Brak eksponatow do druku', 'error'); return; }
   showToast('Generowanie PDF (' + recs.length + ' szt.)...', '');
   try {
     var doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
@@ -4191,7 +4358,8 @@ async function runBatchPrint() {
       for (var a = 0; a < recs.length; a++) {
         var rm = recs[a];
         var qrm = await makeQRDataUrl(qrTextFor(rm));
-        items.push({ qr: qrm, name: rm.company || '-', number: (rm.number != null ? rm.number : '') });
+        var tag = groupTagOf(rm);
+        items.push({ qr: qrm, name: (rm.company || '-') + (tag ? ' ' + tag : ''), number: (rm.number != null ? rm.number : '') });
       }
       drawMiniQRGrid(doc, items);
     } else if (printMode === 'qr') {
@@ -4212,12 +4380,11 @@ async function runBatchPrint() {
         drawFullCard(doc, rc, qrc, dcam, dscr);
       }
     }
-    var fname = (printMode === 'mini' ? 'MiniQR' : printMode === 'qr' ? 'QR' : 'Karty') + '_' + recs.length + 'szt';
+    var fname = (printMode === 'mini' ? 'MiniQR' : printMode === 'qr' ? 'QR' : 'Karty')
+      + '_' + (fileLabel || (recs.length + 'szt'));
     finishPdf(doc, 'print', fname, '');
   } catch(e) {
     showToast('Blad generowania: ' + (e && e.message ? e.message : e), 'error');
-  } finally {
-    updateSelectBar();
   }
 }
 
@@ -4440,7 +4607,7 @@ function tilePreviewHTML(r) {
     ? `<div class="tt-foot">Ostatnia zmiana: ${escAttr(r.updatedBy || '—')}${when ? ' — ' + when : ''}</div>` : '';
 
   return `<div class="tt-head">
-      <span class="tt-name">${escAttr((r.number ? '#' + r.number + '  ' : '') + (r.company || '—'))}</span>
+      <span class="tt-name">${escAttr(recordTitleOf(r))}</span>
       <span style="white-space:nowrap">${def ? def.icon + ' ' + escAttr(def.label) : ''}</span>
     </div>
     <div class="tt-body">
