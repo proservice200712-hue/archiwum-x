@@ -2139,9 +2139,9 @@ function renderList(filteredRecords) {
     const inCatalog = r => r.catalog && catalogNames.includes(r.catalog);
     const tileFor = n => catalogTileHTML(n, records.filter(r => (r.catalog || '') === n && r.status !== 'archiwum'));
     const groupsToShow = (forceFlat || viewMode === 'flat') ? [] : catalogsToShow(list);
-    // Bez filtrów eksponaty z grup siedzą w folderach. Przy szukaniu widać je pojedynczo,
-    // żeby nic się nie schowało — na kafelku jest wtedy podpis, z jakiej grupy pochodzą.
-    const looseRecords = filtersActive ? list : list.filter(r => !inCatalog(r));
+    // Eksponaty należące do grupy zawsze siedzą w folderze — także przy szukaniu i filtrowaniu.
+    // Pojedynczo widać tylko te, które do żadnej grupy nie należą.
+    const looseRecords = list.filter(r => !inCatalog(r));
 
     if (!forceFlat && viewMode === 'mixed') {
       // Grupy i eksponaty w jednej siatce, poukładane alfabetycznie
