@@ -277,28 +277,19 @@
     vertical-align: bottom;
   }
 
-  /* Przełącznik widoku: rozstrzelone eksponaty albo alfabetycznie z katalogami jako folderami */
-  .toggle-switch {
-    display: inline-flex; align-items: center; gap: 8px;
-    cursor: pointer; user-select: none;
-    padding: 4px 10px 4px 4px;
-    border: 1px solid #e2e8f0; background: #fff;
+  /* Sposób ułożenia listy: trzy stany obok siebie, zapalony na zielono */
+  .seg { display: inline-flex; border: 1px solid #a0aec0; background: #fff; }
+  .seg-btn {
+    background: transparent; border: none; border-left: 1px solid #e2e8f0;
+    padding: 7px 11px; font-size: 0.78rem; font-weight: 700;
+    color: var(--gray); cursor: pointer; font-family: inherit; white-space: nowrap;
   }
-  .toggle-switch:hover { border-color: #a0aec0; }
-  .toggle-track {
-    width: 44px; height: 24px;
-    background: #cbd5e0; position: relative; flex-shrink: 0;
-    transition: background .18s;
+  .seg-btn:first-child { border-left: none; }
+  .seg-btn:hover { background: #edf2f7; }
+  .seg-btn.on { background: var(--green); color: #fff; }
+  @media (max-width: 420px) {
+    .seg-btn { padding: 7px 8px; font-size: 0.73rem; }
   }
-  .toggle-knob {
-    position: absolute; top: 3px; left: 3px;
-    width: 18px; height: 18px;
-    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.35);
-    transition: transform .18s;
-  }
-  .toggle-switch.on .toggle-track { background: var(--green); }
-  .toggle-switch.on .toggle-knob { transform: translateX(20px); }
-  .toggle-label { font-size: 0.82rem; font-weight: 700; color: var(--dark); white-space: nowrap; }
 
   #catalog-bar, #assign-bar, #group-bar {
     display: none;
@@ -1079,7 +1070,6 @@
   *, *::before, *::after { border-radius: 0 !important; }
   .user-avatar, .user-avatar-sm, .select-check, .notif-dot, .flt-dot,
   .detail-warn .dw-icon { border-radius: 50% !important; }
-  .toggle-track, .toggle-knob { border-radius: 999px !important; }
   /* ==================== CHMURKA PODGLADU PO NAJECHANIU NA KAFELEK ==================== */
   #tile-tip {
     display: none;
@@ -1353,10 +1343,13 @@
         <option value="type">▤ Sekcje: typ</option>
         <option value="producer">▤ Sekcje: producent</option>
       </select>
-      <div class="toggle-switch" id="view-toggle" onclick="toggleViewMode()"
-        title="Włączony: katalogi jako foldery, wszystko ułożone alfabetycznie. Wyłączony: wszystkie eksponaty rozstrzelone">
-        <span class="toggle-track"><span class="toggle-knob"></span></span>
-        <span class="toggle-label" id="view-toggle-label">Rozstrzelone</span>
+      <div class="seg" id="view-seg" title="Jak ułożyć listę eksponatów">
+        <button type="button" class="seg-btn" data-mode="flat" onclick="setViewMode('flat')"
+          title="Same eksponaty, bez grup">Rozstrzelone</button>
+        <button type="button" class="seg-btn" data-mode="groups" onclick="setViewMode('groups')"
+          title="Grupy u góry, samodzielne eksponaty pod spodem">Grupy u góry</button>
+        <button type="button" class="seg-btn" data-mode="mixed" onclick="setViewMode('mixed')"
+          title="Grupy wplecione między eksponaty, wszystko po alfabecie">Alfabetycznie</button>
       </div>
       <button class="btn btn-gray btn-sm" onclick="clearFilters()" title="Wyczyść filtry">✕ Wyczyść</button>
     </div>
@@ -1379,6 +1372,8 @@
       <button class="btn btn-gray btn-sm" onclick="renameCatalog(currentCatalog)" title="Zmień nazwę katalogu">✏️ Nazwa</button>
       <button class="btn btn-gray btn-sm" onclick="showCatalogImageModal(currentCatalog)" title="Nadaj obrazek katalogowi">🖼️ Obrazek</button>
       <button class="btn btn-primary btn-sm" onclick="startManageCatalog()">📋 Zawartość katalogu</button>
+      <button class="btn btn-danger btn-sm" onclick="removeCatalogName(currentCatalog)"
+        title="Usuń grupę — eksponaty wrócą na główną listę">🗑️ Usuń grupę</button>
     </span>
   </div>
   <div id="group-bar">
@@ -2126,7 +2121,7 @@ function renderList(filteredRecords) {
   updateCatalogBar();
 
   // Przy szukaniu, druku i zarządzaniu katalogiem foldery znikają — widać wszystkie pasujące eksponaty
-  const forceFlat = manageMode || printSelectMode || filtersActive;
+  const forceFlat = manageMode || printSelectMode;
   let html = '';
 
   if (manageMode) {
@@ -2143,11 +2138,16 @@ function renderList(filteredRecords) {
   } else {
     const inCatalog = r => r.catalog && catalogNames.includes(r.catalog);
     const tileFor = n => catalogTileHTML(n, records.filter(r => (r.catalog || '') === n && r.status !== 'archiwum'));
+    const groupsToShow = (forceFlat || viewMode === 'flat') ? [] : catalogsToShow(list);
+    // Bez filtrów eksponaty z grup siedzą w folderach. Przy szukaniu widać je pojedynczo,
+    // żeby nic się nie schowało — na kafelku jest wtedy podpis, z jakiej grupy pochodzą.
+    const looseRecords = filtersActive ? list : list.filter(r => !inCatalog(r));
+
     if (!forceFlat && viewMode === 'mixed') {
-      // Foldery i luźne eksponaty w jednej siatce, poukładane alfabetycznie
+      // Grupy i eksponaty w jednej siatce, poukładane alfabetycznie
       const mixed = [
-        ...catalogNames.map(n => ({ key: n || '', nr: 0, html: tileFor(n) })),
-        ...list.filter(r => !inCatalog(r)).map(r => ({ key: r.company || '', nr: parseInt(r.number) || 0, html: recordCardHTML(r) }))
+        ...groupsToShow.map(n => ({ key: n || '', nr: 0, html: tileFor(n) })),
+        ...looseRecords.map(r => ({ key: r.company || '', nr: parseInt(r.number) || 0, html: recordCardHTML(r) }))
       ].sort((a, b) => {
         // Najpierw alfabetycznie po nazwie, a w obrębie jednej firmy po numerze rosnąco
         const byName = a.key.localeCompare(b.key, 'pl', { numeric: true, sensitivity: 'base' });
@@ -2155,11 +2155,23 @@ function renderList(filteredRecords) {
       });
       if (mixed.length) html += `<div class="records-grid">${mixed.map(x => x.html).join('')}</div>`;
       list = [];
+    } else if (!forceFlat && viewMode === 'groups') {
+      if (groupsToShow.length) html += `<div class="records-grid">${groupsToShow.map(tileFor).join('')}</div>`;
+      list = looseRecords;
     }
     if (list.length) html += recordsHTML(list);
   }
 
   container.innerHTML = html || emptyStateHTML();
+}
+
+// Które grupy pokazać: bez filtrów wszystkie, a przy szukaniu te, które pasują nazwą
+// albo mają w środku choć jeden pasujący eksponat
+function catalogsToShow(filtered) {
+  if (!filtersActive) return catalogNames;
+  const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const withHit = new Set(filtered.map(r => r.catalog || '').filter(Boolean));
+  return catalogNames.filter(n => withHit.has(n) || (q && n.toLowerCase().includes(q)));
 }
 
 function emptyStateHTML() {
@@ -2270,32 +2282,33 @@ let groupNewMode = false;    // „Grupuj" — tworzenie katalogu z zaznaczonych
 let groupNameTouched = false; // czy nazwa została wpisana ręcznie — wtedy nie nadpisujemy jej automatem
 let manageSelected = {};
 let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ustępują wynikom
-// Dwa tryby widoku listy. Po otwarciu strony zawsze rozstrzelone — wszystkie eksponaty bez folderów
-//   'flat'  — rozstrzelone: same eksponaty, bez folderów
-//   'mixed' — alfabetycznie: foldery katalogów i luźne eksponaty razem w jednej siatce, po alfabecie
+// Trzy sposoby ułożenia listy. Po otwarciu strony zawsze rozstrzelone — wszystkie eksponaty bez grup
+//   'flat'   — rozstrzelone: same eksponaty, grupy rozsypane
+//   'groups' — grupy u góry, samodzielne eksponaty pod spodem
+//   'mixed'  — alfabetycznie: grupy wplecione między eksponaty w jednej siatce
 let viewMode = 'flat';
 
-function toggleViewMode() {
-  viewMode = (viewMode === 'mixed') ? 'flat' : 'mixed';
-  if (viewMode === 'flat') {
-    // Widok rozstrzelony nie ma pojęcia „wnętrza katalogu"
+function setViewMode(mode) {
+  viewMode = mode;
+  if (mode === 'flat') {
+    // Widok rozstrzelony nie ma pojęcia „wnętrza grupy"
     currentCatalog = null;
     document.getElementById('catalog-bar').style.display = 'none';
   }
-  updateViewToggle();
+  updateViewSeg();
   applyFilters();
-  showToast(viewMode === 'mixed'
-    ? 'Katalogi w folderach, wszystko po alfabecie'
-    : 'Wszystkie eksponaty rozstrzelone', '');
+  showToast(
+    mode === 'groups' ? 'Grupy u góry, samodzielne eksponaty pod spodem' :
+    mode === 'mixed'  ? 'Grupy i eksponaty razem, po alfabecie' :
+                        'Wszystkie eksponaty rozstrzelone', '');
 }
 
-function updateViewToggle() {
-  const el = document.getElementById('view-toggle');
-  if (el) el.classList.toggle('on', viewMode === 'mixed');
-  const lab = document.getElementById('view-toggle-label');
-  if (lab) lab.textContent = viewMode === 'mixed' ? 'Alfabetycznie' : 'Rozstrzelone';
+function updateViewSeg() {
+  document.querySelectorAll('#view-seg .seg-btn').forEach(b => {
+    b.classList.toggle('on', b.getAttribute('data-mode') === viewMode);
+  });
 }
-updateViewToggle();
+updateViewSeg();
 
 function loadCatalogNames() {
   if (demoMode) {
@@ -2377,7 +2390,7 @@ function addCatalogFromManager() {
 
 function removeCatalogName(name) {
   const inCat = records.filter(r => (r.catalog || '') === name);
-  if (!confirm('Usunąć katalog: ' + name + '?\n\nEksponaty (' + inCat.length + ') NIE zostaną usunięte — wrócą na główną listę.')) return;
+  if (!confirm('Usunąć grupę: ' + name + '?\n\nEksponaty (' + inCat.length + ') NIE zostaną usunięte — wrócą na główną listę.')) return;
 
   const finish = () => {
     inCat.forEach(r => r.catalog = '');
@@ -2950,6 +2963,7 @@ function clearFilters() {
   document.getElementById('filter-group').value = '';
   localStorage.setItem('archivum_group', '');
   currentFilter = '';
+  filtersActive = false;
   updateFiltersDot();
   renderList();
 }
