@@ -250,6 +250,9 @@
     transition: transform 0.15s, box-shadow 0.15s;
   }
   .catalog-card:hover .cat-face { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.15); }
+  /* Komplet (jedno logo z części) odróżnia się od grupy kolorem ramki */
+  .catalog-card.is-set .cat-face { border-color: var(--yellow); }
+  .catalog-card.is-set .cat-stack { border-color: var(--yellow); }
   .cat-head {
     padding: 10px 12px 6px;
     font-size: 0.9rem; font-weight: 800; line-height: 1.25;
@@ -1364,27 +1367,38 @@
     <button class="btn btn-danger btn-sm" onclick="cancelPrintSelect()">✕ Anuluj</button>
   </div>
   <div id="catalog-bar">
-    <button class="btn btn-gray btn-sm" onclick="exitCatalog()">← Wszystkie</button>
-    <span class="cb-name">📁 <span id="cat-bar-name">—</span></span>
+    <button class="btn btn-gray btn-sm" id="cat-back-btn" onclick="catalogGoUp()">← Wszystkie</button>
+    <span class="cb-name"><span id="cat-bar-icon">📁</span> <span id="cat-bar-name">—</span></span>
     <span class="psb-badge" id="cat-bar-count">0</span>
+    <span id="cat-parent-wrap" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
+      <span class="psb-info">w grupie:</span>
+      <select class="filter-select" id="cat-parent-select" onchange="setCatalogParent(this.value)"
+        title="Do której grupy należy ten komplet"></select>
+      <button class="btn btn-gray btn-sm" onclick="newGroupForSet()" title="Utwórz nową grupę i włóż do niej ten komplet">+ Nowa grupa</button>
+    </span>
     <span style="flex:1"></span>
     <span id="cat-manage-btns" style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-gray btn-sm" id="cat-kind-btn" onclick="toggleCatalogKind()">⇄ Zmień rodzaj</button>
       <button class="btn btn-gray btn-sm" onclick="renameCatalog(currentCatalog)" title="Zmień nazwę katalogu">✏️ Nazwa</button>
       <button class="btn btn-gray btn-sm" onclick="showCatalogImageModal(currentCatalog)" title="Nadaj obrazek katalogowi">🖼️ Obrazek</button>
       <button class="btn btn-primary btn-sm" onclick="startManageCatalog()">📋 Zawartość katalogu</button>
-      <button class="btn btn-success btn-sm" onclick="openGroupPrintMenu()"
-        title="Wydrukuj wszystkie eksponaty z tej grupy">🖨️ Drukuj grupę</button>
-      <button class="btn btn-danger btn-sm" onclick="removeCatalogName(currentCatalog)"
-        title="Usuń grupę — eksponaty wrócą na główną listę">🗑️ Usuń grupę</button>
+      <button class="btn btn-success btn-sm" id="cat-print-btn" onclick="openGroupPrintMenu()"
+        title="Wydrukuj całą zawartość">🖨️ Drukuj grupę</button>
+      <button class="btn btn-danger btn-sm" id="cat-del-btn" onclick="removeCatalogName(currentCatalog)"
+        title="Eksponaty nie znikną — wrócą na główną listę">🗑️ Usuń grupę</button>
     </span>
   </div>
   <div id="group-bar">
     <span class="psb-info">Zaznacz kafelki: <span class="psb-badge" id="group-count">0</span></span>
+    <div class="seg" id="newkind-seg" title="Komplet: jedno logo rozebrane na części. Grupa: kilka sztuk tego samego">
+      <button type="button" class="seg-btn on" data-kind="set" onclick="setNewKind('set')">🧩 Komplet</button>
+      <button type="button" class="seg-btn" data-kind="group" onclick="setNewKind('group')">📁 Grupa</button>
+    </div>
     <input type="text" id="group-name-input" class="search-box" placeholder="Nazwa powstanie automatycznie..."
       style="flex:1;min-width:160px" oninput="groupNameTouched = true"
       onkeydown="if(event.key==='Enter') saveGroupNew()">
     <button class="btn btn-gray btn-sm" onclick="regenGroupName()" title="Wróć do nazwy automatycznej">↻</button>
-    <button class="btn btn-success btn-sm" onclick="saveGroupNew()">✓ Utwórz katalog</button>
+    <button class="btn btn-success btn-sm" id="group-save-btn" onclick="saveGroupNew()">✓ Utwórz komplet</button>
     <button class="btn btn-danger btn-sm" onclick="cancelGroupNew()">✕ Anuluj</button>
   </div>
   <div id="assign-bar">
@@ -2160,11 +2174,17 @@ function renderList(filteredRecords) {
     });
     html = list.length ? `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>` : '';
   } else if (currentCatalog) {
+    // W grupie najpierw jej komplety, potem eksponaty przypisane wprost do grupy
+    const sets = childSets(currentCatalog);
+    if (sets.length) {
+      html += `<div class="records-grid">${sets.map(n =>
+        catalogTileHTML(n, allRecordsOf(n))).join('')}</div>`;
+    }
     list = list.filter(r => (r.catalog || '') === currentCatalog);
-    if (list.length) html = recordsHTML(list);
+    if (list.length) html += recordsHTML(list);
   } else {
     const inCatalog = r => r.catalog && catalogNames.includes(r.catalog);
-    const tileFor = n => catalogTileHTML(n, records.filter(r => (r.catalog || '') === n && r.status !== 'archiwum'));
+    const tileFor = n => catalogTileHTML(n, allRecordsOf(n));
     const groupsToShow = (forceFlat || viewMode === 'flat') ? [] : catalogsToShow(list);
     // Eksponaty należące do grupy zawsze siedzą w folderze — także przy szukaniu i filtrowaniu.
     // Pojedynczo widać tylko te, które do żadnej grupy nie należą.
@@ -2195,10 +2215,13 @@ function renderList(filteredRecords) {
 // Które grupy pokazać: bez filtrów wszystkie, a przy szukaniu te, które pasują nazwą
 // albo mają w środku choć jeden pasujący eksponat
 function catalogsToShow(filtered) {
-  if (!filtersActive) return catalogNames;
+  const top = topLevelCatalogs();
+  if (!filtersActive) return top;
   const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
   const withHit = new Set(filtered.map(r => r.catalog || '').filter(Boolean));
-  return catalogNames.filter(n => withHit.has(n) || (q && n.toLowerCase().includes(q)));
+  const pasuje = n => withHit.has(n) || (q && n.toLowerCase().includes(q));
+  // Grupa zostaje na widoku także wtedy, gdy trafienie siedzi w jej komplecie
+  return top.filter(n => pasuje(n) || childSets(n).some(pasuje));
 }
 
 function emptyStateHTML() {
@@ -2354,6 +2377,9 @@ function loadCatalogNames() {
       const meta = {};
       if (c.image) meta.image = c.image;
       if (c.gnum) meta.gnum = c.gnum;
+      if (c.knum) meta.knum = c.knum;
+      if (c.kind === 'set') meta.kind = 'set';
+      if (c.parent) meta.parent = c.parent;
       if (c.custom) meta.custom = true;
       if (Object.keys(meta).length) catalogMeta[c.name] = meta;
     });
@@ -2365,40 +2391,104 @@ function loadCatalogNames() {
   }, err => console.log('Catalogs load error:', err));
 }
 
-// ==================== NUMERY GRUP (G1, G2, ...) ====================
-// Numer nadawany jest raz i zapisany przy grupie, zeby nie zmienial sie po usunieciu innej grupy.
-function groupNumOf(name) {
+// ==================== KOMPLETY (K) I GRUPY (G) ====================
+// Komplet  — jedno logo rozebrane na części; każda część to osobny eksponat (K1, K2, ...)
+// Grupa    — kilka sztuk tego samego; może zawierać komplety albo pojedyncze eksponaty (G1, G2, ...)
+// Oba siedzą w tej samej kolekcji `catalogs`, różni je pole `kind`. Komplet wskazuje
+// swoją grupę polem `parent`. Eksponat należy do kontenera przez `r.catalog` — jak dotychczas.
+
+function catKind(name) {
   const m = catalogMeta[name];
-  return (m && m.gnum) ? m.gnum : null;
+  return (m && m.kind === 'set') ? 'set' : 'group';
 }
 
-function nextGroupNumber() {
+function isSet(name) { return catKind(name) === 'set'; }
+
+// Grupa, w której leży komplet (pusto = kontener na poziomie głównym)
+function catParent(name) {
+  const m = catalogMeta[name];
+  const p = m && m.parent;
+  return (p && p !== name && catalogNames.includes(p)) ? p : '';
+}
+
+function catNum(name) {
+  const m = catalogMeta[name] || {};
+  return isSet(name) ? (m.knum || null) : (m.gnum || null);
+}
+
+// Znacznik kontenera: "K5" albo "G7"
+function catTag(name) {
+  const n = catNum(name);
+  return n ? (isSet(name) ? 'K' : 'G') + n : '';
+}
+
+// Komplety leżące w danej grupie
+function childSets(groupName) {
+  return catalogNames.filter(n => isSet(n) && catParent(n) === groupName);
+}
+
+// Eksponaty przypisane wprost do kontenera
+function directRecordsOf(name) {
+  return records.filter(r => (r.catalog || '') === name && r.status !== 'archiwum');
+}
+
+// Wszystkie eksponaty kontenera: wprost w nim + w kompletach, które w nim leżą
+function allRecordsOf(name) {
+  let out = directRecordsOf(name);
+  childSets(name).forEach(k => { out = out.concat(directRecordsOf(k)); });
+  return out;
+}
+
+// Kontenery widoczne na poziomie głównym: grupy i komplety bez grupy
+function topLevelCatalogs() {
+  return catalogNames.filter(n => !catParent(n));
+}
+
+function nextNumFor(kind) {
   let max = 0;
   Object.keys(catalogMeta).forEach(n => {
-    const g = catalogMeta[n] && catalogMeta[n].gnum;
-    if (g && g > max) max = g;
+    const m = catalogMeta[n] || {};
+    const v = (kind === 'set') ? m.knum : m.gnum;
+    if (v && v > max) max = v;
   });
   return max + 1;
 }
 
+// "1 komplet" / "2 komplety" / "5 kompletów"
+function kompletyLabel(n) {
+  if (n === 1) return '1 komplet';
+  if (n >= 2 && n <= 4) return n + ' komplety';
+  return n + ' kompletów';
+}
+
+// ==================== NUMERY GRUP (G1, G2, ...) ====================
+// Numer nadawany jest raz i zapisany przy grupie, zeby nie zmienial sie po usunieciu innej grupy.
+function groupNumOf(name) {
+  return catNum(name);
+}
+
+function nextGroupNumber() { return nextNumFor('group'); }
+
 // Znacznik grupy eksponatu, np. "G1" — pusty, gdy eksponat nie należy do grupy
 function groupTagOf(r) {
-  if (!r.catalog || !catalogNames.includes(r.catalog)) return '';
-  const g = groupNumOf(r.catalog);
-  return g ? 'G' + g : '';
+  const c = r.catalog;
+  if (!c || !catalogNames.includes(c)) return '';
+  const own = catTag(c);
+  const parent = catParent(c);
+  const up = parent ? catTag(parent) : '';
+  return [up, own].filter(Boolean).join(' ');
 }
 
 // Etykieta grupy: najpierw firma, potem numer grupy, na końcu numery eksponatów,
 // np. "AFF Republic G21 20, 33". Liczona z zawartości, więc dodanie eksponatu
 // do grupy od razu dopisuje jego numer.
 function groupLabelOf(name) {
-  const g = groupNumOf(name);
-  const tag = g ? 'G' + g : '';
+  const tag = catTag(name);
   const meta = catalogMeta[name] || {};
-  // Nazwa nadana ręcznie zostaje nietknięta — dopisujemy tylko numer grupy
+  // Nazwa nadana ręcznie zostaje nietknięta — dopisujemy tylko znacznik
   if (meta.custom) return name + (tag ? ' ' + tag : '');
 
-  const items = records.filter(r => (r.catalog || '') === name && r.status !== 'archiwum');
+  const items = allRecordsOf(name);
   if (!items.length) return name + (tag ? ' ' + tag : '');
 
   const byCompany = new Map();
@@ -2425,20 +2515,27 @@ function recordTitleOf(r) {
 let gnumFillStarted = false;
 function ensureGroupNumbers(docs) {
   if (demoMode || gnumFillStarted) return;
-  const missing = docs.filter(d => !d.data().gnum);
+  const brak = d => (d.data().kind === 'set') ? !d.data().knum : !d.data().gnum;
+  const missing = docs.filter(brak);
   if (!missing.length) return;
   gnumFillStarted = true;
-  let next = 1;
-  docs.forEach(d => { const g = d.data().gnum; if (g && g >= next) next = g + 1; });
+  let nextG = 1, nextK = 1;
+  docs.forEach(d => {
+    const c = d.data();
+    if (c.gnum && c.gnum >= nextG) nextG = c.gnum + 1;
+    if (c.knum && c.knum >= nextK) nextK = c.knum + 1;
+  });
   missing.sort((a, b) => {
     const ta = (a.data().created && a.data().created.seconds) || 0;
     const tb = (b.data().created && b.data().created.seconds) || 0;
     if (ta !== tb) return ta - tb;
     return String(a.data().name || '').localeCompare(String(b.data().name || ''), 'pl');
   });
-  Promise.all(missing.map(d => d.ref.update({ gnum: next++ })))
-    .then(() => showToast('Nadano numery grup (' + missing.length + ') ✅', 'success'))
-    .catch(e => console.log('Blad nadawania numerow grup:', e));
+  Promise.all(missing.map(d =>
+    d.ref.update((d.data().kind === 'set') ? { knum: nextK++ } : { gnum: nextG++ })
+  ))
+    .then(() => showToast('Nadano numery (' + missing.length + ') ✅', 'success'))
+    .catch(e => console.log('Blad nadawania numerow:', e));
 }
 
 function populateCatalogSelect() {
@@ -2498,10 +2595,14 @@ function addCatalogFromManager() {
 
 function removeCatalogName(name) {
   const inCat = records.filter(r => (r.catalog || '') === name);
-  if (!confirm('Usunąć grupę: ' + name + '?\n\nEksponaty (' + inCat.length + ') NIE zostaną usunięte — wrócą na główną listę.')) return;
+  const sets = isSet(name) ? [] : childSets(name);
+  const co = isSet(name) ? 'komplet' : 'grupę';
+  const opisSetow = sets.length ? '\nKomplety (' + sets.length + ') wrócą na poziom główny.' : '';
+  if (!confirm('Usunąć ' + co + ': ' + name + '?\n\nEksponaty (' + inCat.length + ') NIE zostaną usunięte — wrócą na główną listę.' + opisSetow)) return;
 
   const finish = () => {
     inCat.forEach(r => r.catalog = '');
+    sets.forEach(k => { if (catalogMeta[k]) delete catalogMeta[k].parent; });
     catalogNames = catalogNames.filter(n => n !== name);
     delete catalogMeta[name];
     delete catalogDocs[name];
@@ -2519,6 +2620,8 @@ function removeCatalogName(name) {
 
   if (demoMode) { finish(); return; }
   Promise.all(inCat.map(r => db.collection('records').doc(r.id).update({ catalog: '' })))
+    .then(() => Promise.all(sets.map(k =>
+      catalogDocs[k] ? db.collection('catalogs').doc(catalogDocs[k]).update({ parent: '' }) : null)))
     .then(() => db.collection('catalogs').where('name','==',name).get())
     .then(snap => Promise.all(snap.docs.map(d => d.ref.delete())))
     .then(finish)
@@ -2697,12 +2800,19 @@ function catalogTileHTML(name, items) {
     .filter(x => x.n > 0)
     .map(x => `<span title="${x.s.label}">${x.s.icon} ${x.n}</span>`)
     .join('');
-  const szt = items.length === 1 ? '1 eksponat' : items.length + ' szt.';
+  const komplet = isSet(name);
+  const sets = komplet ? [] : childSets(name);
+  // Komplet liczy części, grupa — sztuki (a jeśli ma komplety, to i komplety)
+  const szt = komplet
+    ? (items.length === 1 ? 'komplet — 1 część' : 'komplet — ' + items.length + ' części')
+    : (sets.length
+        ? kompletyLabel(sets.length) + ' (' + items.length + ' szt.)'
+        : (items.length === 1 ? '1 eksponat' : items.length + ' szt.'));
   const img = catalogImageFor(name, items);
   const iconHTML = img
     ? `<div class="cat-icon"><img src="${img}" alt="obrazek katalogu"></div>`
-    : `<div class="cat-icon">📁</div>`;
-  return `<div class="catalog-card" data-cat="${escAttr(name)}" onclick="openCatalog('${name.replace(/'/g,"\\'")}')" title="Otwórz katalog">
+    : `<div class="cat-icon">${komplet ? '🧩' : '📁'}</div>`;
+  return `<div class="catalog-card${komplet ? ' is-set' : ''}" data-cat="${escAttr(name)}" onclick="openCatalog('${name.replace(/'/g,"\\'")}')" title="${komplet ? 'Otwórz komplet' : 'Otwórz grupę'}">
     <div class="cat-stack s1"></div>
     <div class="cat-stack s2"></div>
     <div class="cat-face">
@@ -2736,8 +2846,145 @@ function updateCatalogBar() {
   if (!currentCatalog || manageMode) { bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
   document.getElementById('cat-bar-name').textContent = groupLabelOf(currentCatalog);
-  document.getElementById('cat-bar-count').textContent =
-    records.filter(r => (r.catalog || '') === currentCatalog && r.status !== 'archiwum').length;
+  updateCatalogBarKind();
+  document.getElementById('cat-bar-count').textContent = allRecordsOf(currentCatalog).length;
+}
+
+// Pasek otwartego kontenera wygląda inaczej dla kompletu i dla grupy
+function updateCatalogBarKind() {
+  const name = currentCatalog;
+  if (!name) return;
+  const komplet = isSet(name);
+
+  const ico = document.getElementById('cat-bar-icon');
+  if (ico) ico.textContent = komplet ? '🧩' : '📁';
+
+  const kindBtn = document.getElementById('cat-kind-btn');
+  if (kindBtn) {
+    kindBtn.textContent = komplet ? '⇄ Zmień na grupę' : '⇄ Zmień na komplet';
+    kindBtn.title = komplet
+      ? 'To nie komplet, a kilka sztuk tego samego'
+      : 'To jedno logo rozebrane na części';
+  }
+  const printBtn = document.getElementById('cat-print-btn');
+  if (printBtn) printBtn.textContent = komplet ? '🖨️ Drukuj komplet' : '🖨️ Drukuj grupę';
+  const delBtn = document.getElementById('cat-del-btn');
+  if (delBtn) delBtn.textContent = komplet ? '🗑️ Usuń komplet' : '🗑️ Usuń grupę';
+
+  const back = document.getElementById('cat-back-btn');
+  const parent = catParent(name);
+  if (back) back.textContent = parent ? '← ' + (catTag(parent) || 'grupa') : '← Wszystkie';
+
+  // Komplet można włożyć do grupy — grupa nie może leżeć w innej grupie
+  const wrap = document.getElementById('cat-parent-wrap');
+  if (wrap) {
+    wrap.style.display = komplet ? 'flex' : 'none';
+    if (komplet) {
+      const sel = document.getElementById('cat-parent-select');
+      const grupy = catalogNames.filter(n => !isSet(n));
+      sel.innerHTML = '<option value="">— bez grupy —</option>' +
+        grupy.map(n => `<option value="${escAttr(n)}"${parent === n ? ' selected' : ''}>${escAttr(groupLabelOf(n))}</option>`).join('');
+    }
+  }
+}
+
+// Wyjście w górę: z kompletu do jego grupy, a z grupy na poziom główny
+function catalogGoUp() {
+  const parent = currentCatalog ? catParent(currentCatalog) : '';
+  if (parent) { openCatalog(parent); return; }
+  exitCatalog();
+}
+
+// Przypisanie kompletu do grupy (albo wyjęcie z niej)
+function setCatalogParent(groupName) {
+  const name = currentCatalog;
+  if (!name || !isSet(name)) return;
+  const parent = groupName || '';
+  if (parent && isSet(parent)) { showToast('Komplet nie może leżeć w innym komplecie', 'error'); return; }
+
+  const finish = () => {
+    if (!catalogMeta[name]) catalogMeta[name] = {};
+    if (parent) catalogMeta[name].parent = parent; else delete catalogMeta[name].parent;
+    if (demoMode) localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
+    applyFilters();
+    showToast(parent ? 'Komplet w grupie: ' + parent + ' ✅' : 'Komplet wyjęty z grupy', 'success');
+  };
+
+  if (demoMode) { finish(); return; }
+  const id = catalogDocs[name];
+  if (!id) { showToast('Nie znaleziono kompletu w bazie', 'error'); return; }
+  db.collection('catalogs').doc(id).update({ parent: parent })
+    .then(finish)
+    .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
+}
+
+// Nowa grupa zakładana wprost z otwartego kompletu
+function newGroupForSet() {
+  const name = currentCatalog;
+  if (!name || !isSet(name)) return;
+  const input = prompt('Nazwa nowej grupy:', name);
+  if (input === null) return;
+  const gname = input.trim();
+  if (!gname) return;
+  if (catalogNames.includes(gname)) { showToast('Taka nazwa już istnieje', 'error'); return; }
+
+  if (demoMode) {
+    catalogNames.push(gname);
+    catalogNames.sort((a, b) => a.localeCompare(b, 'pl'));
+    catalogMeta[gname] = { gnum: nextNumFor('group') };
+    localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
+    localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
+    setCatalogParent(gname);
+    return;
+  }
+  db.collection('catalogs')
+    .add({ name: gname, gnum: nextNumFor('group'), created: firebase.firestore.FieldValue.serverTimestamp() })
+    .then(ref => {
+      catalogNames.push(gname);
+      catalogDocs[gname] = ref.id;
+      catalogMeta[gname] = { gnum: nextNumFor('group') };
+      setCatalogParent(gname);
+    })
+    .catch(e => showToast('Błąd: ' + e.message, 'error'));
+}
+
+// Zamiana kompletu na grupę i odwrotnie — brakujący numer nadawany jest przy zmianie
+function toggleCatalogKind() {
+  const name = currentCatalog;
+  if (!name) return;
+  const komplet = isSet(name);
+  if (!komplet && childSets(name).length) {
+    showToast('Ta grupa zawiera komplety — najpierw je z niej wyjmij', 'error');
+    return;
+  }
+  const naCo = komplet ? 'grupę' : 'komplet';
+  if (!confirm('Zmienić „' + groupLabelOf(name) + '” na ' + naCo + '?')) return;
+
+  const meta = catalogMeta[name] || (catalogMeta[name] = {});
+  const zmiany = {};
+  if (komplet) {
+    zmiany.kind = 'group';
+    zmiany.parent = '';
+    if (!meta.gnum) zmiany.gnum = nextNumFor('group');
+  } else {
+    zmiany.kind = 'set';
+    if (!meta.knum) zmiany.knum = nextNumFor('set');
+  }
+
+  const finish = () => {
+    if (komplet) { meta.kind = 'group'; delete meta.parent; if (zmiany.gnum) meta.gnum = zmiany.gnum; }
+    else { meta.kind = 'set'; if (zmiany.knum) meta.knum = zmiany.knum; }
+    if (demoMode) localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
+    applyFilters();
+    showToast('Zmieniono na ' + naCo + ' — teraz ' + catTag(name), 'success');
+  };
+
+  if (demoMode) { finish(); return; }
+  const id = catalogDocs[name];
+  if (!id) { showToast('Nie znaleziono w bazie', 'error'); return; }
+  db.collection('catalogs').doc(id).update(zmiany)
+    .then(finish)
+    .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
 }
 
 // Jeden tryb na dodawanie i usuwanie: zaznaczone = należy do katalogu
@@ -2803,6 +3050,18 @@ function regenGroupName() {
   applyAutoGroupName();
 }
 
+// Rodzaj nowego kontenera wybierany w pasku tworzenia
+let newKind = 'set';
+
+function setNewKind(kind) {
+  newKind = kind;
+  document.querySelectorAll('#newkind-seg .seg-btn').forEach(b => {
+    b.classList.toggle('on', b.getAttribute('data-kind') === kind);
+  });
+  const btn = document.getElementById('group-save-btn');
+  if (btn) btn.textContent = (kind === 'set') ? '✓ Utwórz komplet' : '✓ Utwórz grupę';
+}
+
 // „Grupuj" z menu: zaznacz kafelki, nadaj wspólną nazwę, zatwierdź
 function startGroupNew() {
   if (guestMode) return;
@@ -2815,6 +3074,7 @@ function startGroupNew() {
   document.getElementById('group-bar').style.display = 'flex';
   document.getElementById('group-name-input').value = '';
   groupNameTouched = false;
+  setNewKind('set');
   applyFilters();
   updateAssignBar();
   showToast('Widać tylko eksponaty spoza katalogów. Zaznacz kafelki — nazwa ułoży się sama.', '');
@@ -2846,7 +3106,12 @@ function saveGroupNew() {
     }
     if (demoMode) {
       if (!catalogMeta[name]) catalogMeta[name] = {};
-      if (!catalogMeta[name].gnum) catalogMeta[name].gnum = nextGroupNumber();
+      if (newKind === 'set') {
+        catalogMeta[name].kind = 'set';
+        if (!catalogMeta[name].knum) catalogMeta[name].knum = nextNumFor('set');
+      } else if (!catalogMeta[name].gnum) {
+        catalogMeta[name].gnum = nextNumFor('group');
+      }
       localStorage.setItem('archivum_records', JSON.stringify(records));
       localStorage.setItem('archivum_catalogs', JSON.stringify(catalogNames));
       localStorage.setItem('archivum_catalog_meta', JSON.stringify(catalogMeta));
@@ -2859,13 +3124,19 @@ function saveGroupNew() {
     manageSelected = {};
     document.getElementById('group-bar').style.display = 'none';
     openCatalog(name);
-    showToast((existed ? 'Dodano do katalogu: ' : 'Katalog utworzony: ') + name + ' (' + ids.length + ') ✅', 'success');
+    const co = (newKind === 'set') ? 'Komplet' : 'Grupa';
+    showToast((existed ? 'Dodano do: ' : co + ' utworzona: ') + name + ' (' + ids.length + ') ✅', 'success');
   };
 
   if (demoMode) { finish(); return; }
   const catReady = existed
     ? Promise.resolve()
-    : db.collection('catalogs').add({ name, gnum: nextGroupNumber(), created: firebase.firestore.FieldValue.serverTimestamp() });
+    : db.collection('catalogs').add(Object.assign(
+        { name, created: firebase.firestore.FieldValue.serverTimestamp() },
+        (newKind === 'set')
+          ? { kind: 'set', knum: nextNumFor('set') }
+          : { gnum: nextNumFor('group') }
+      ));
   catReady
     .then(() => Promise.all(targets.map(r => db.collection('records').doc(r.id).update({ catalog: name }))))
     .then(finish)
@@ -4265,7 +4536,7 @@ let printGroupTarget = null;
 function openGroupPrintMenu() {
   if (!currentCatalog) return;
   printGroupTarget = currentCatalog;
-  const n = records.filter(r => (r.catalog || '') === currentCatalog && r.status !== 'archiwum').length;
+  const n = allRecordsOf(currentCatalog).length;
   const hint = document.getElementById('qr-menu-hint');
   if (hint) hint.textContent = 'Ca\u0142a grupa \u201e' + currentCatalog + '\u201d (' + n + ' szt.) \u2014 wybierz rodzaj wydruku, PDF powstanie od razu.';
   document.getElementById('qrMenuModal').style.display = 'flex';
@@ -4276,9 +4547,9 @@ function chooseQRMode(mode) {
     const name = printGroupTarget;
     printGroupTarget = null;
     document.getElementById('qrMenuModal').style.display = 'none';
-    const recs = records.filter(r => (r.catalog || '') === name && r.status !== 'archiwum');
-    const tag = groupNumOf(name) ? 'G' + groupNumOf(name) + '_' : '';
-    generatePrintPdf(recs, mode, 'Grupa_' + tag + pl(name));
+    const recs = allRecordsOf(name);
+    const tag = catTag(name) ? catTag(name) + '_' : '';
+    generatePrintPdf(recs, mode, (isSet(name) ? 'Komplet_' : 'Grupa_') + tag + pl(name));
     return;
   }
   startPrintSelect(mode);
@@ -4685,8 +4956,7 @@ function showTilePreview(id) {
 
   if (id.indexOf('cat:') === 0) {
     const name = id.slice(4);
-    const items = records.filter(rec => (rec.catalog || '') === name && rec.status !== 'archiwum');
-    tip.innerHTML = catalogPreviewHTML(name, items);
+    tip.innerHTML = catalogPreviewHTML(name, allRecordsOf(name));
     positionTilePreview(tip);
     return;
   }
