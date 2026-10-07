@@ -2515,11 +2515,12 @@ let groupNameTouched = false; // czy nazwa została wpisana ręcznie — wtedy n
 let manageSelected = {};
 let manageSelectedSets = {};  // komplety zaznaczone przy tworzeniu grupy
 let filtersActive = false;   // czy działa szukajka/filtr — wtedy foldery ustępują wynikom
-// Trzy sposoby ułożenia listy. Po otwarciu strony zawsze rozstrzelone — wszystkie eksponaty bez grup
+// Trzy sposoby ułożenia listy. Po otwarciu strony widok alfabetyczny — grupy,
+// komplety i samodzielne eksponaty razem w jednej siatce, po alfabecie
 //   'flat'   — rozstrzelone: same eksponaty, grupy rozsypane
 //   'groups' — grupy u góry, samodzielne eksponaty pod spodem
-//   'mixed'  — alfabetycznie: grupy wplecione między eksponaty w jednej siatce
-let viewMode = 'flat';
+//   'mixed'  — alfabetycznie: grupy i komplety wplecione między eksponaty
+let viewMode = 'mixed';
 
 function setViewMode(mode) {
   viewMode = mode;
@@ -3008,7 +3009,7 @@ function statusDotsHTML(items) {
 
 function treeLeafHTML(r) {
   const ph = coverPhotoOf(r);
-  return `<div class="tree-leaf" onclick="showDetail('${r.id}')" title="Otwórz kartę eksponatu">
+  return `<div class="tree-leaf" data-id="${r.id}" onclick="showDetail('${r.id}')" title="Otwórz kartę eksponatu">
     <div class="tl-img">${ph ? `<img src="${escAttr(ph)}" alt="">` : '\u{1F4E6}'}</div>
     <div class="tl-foot">
       <span class="tl-dot" style="background:${statusColor(r.status)}"></span>
@@ -3025,7 +3026,7 @@ function treeHTML(name) {
   const root = `<div class="tree-col">
     <div class="tree-colhead">${isSet(name) ? 'Komplet' : 'Grupa'}</div>
     <div class="tree-item">
-      <div class="tree-node tree-root">
+      <div class="tree-node tree-root" data-cat="${escAttr(name)}">
         <div class="tn-title">${escAttr(groupLabelOf(name))}</div>
         <div class="tn-sub">${sets.length ? kompletyLabel(sets.length) + ' · ' : ''}${all.length} szt.</div>
         <div class="tn-dots">${statusDotsHTML(all)}</div>
@@ -3038,7 +3039,7 @@ function treeHTML(name) {
     ${sets.map(k => {
       const parts = directRecordsOf(k);
       return `<div class="tree-item">
-        <div class="tree-node tree-set klik" onclick="openCatalog('${k.replace(/'/g, "\\'")}')" title="Otwórz komplet">
+        <div class="tree-node tree-set klik" data-cat="${escAttr(k)}" onclick="openCatalog('${k.replace(/'/g, "\\'")}')" title="Otwórz komplet">
           <div class="tn-title">\u{1F9E9} ${escAttr(groupLabelOf(k))}</div>
           <div class="tn-sub">${parts.length === 1 ? 'komplet — 1 część' : 'komplet — ' + parts.length + ' części'}</div>
         </div>
@@ -5153,10 +5154,14 @@ document.addEventListener('mousemove', e => {
 
 // Ten sam kafelek — nie przerywaj odliczania. Inny albo żaden — schowaj i zacznij od nowa.
 function tipTrack(target) {
-  const card = (target && target.closest) ? target.closest('.record-card, .catalog-card') : null;
+  // Chmurka działa na kafelkach listy oraz na węzłach i liściach drzewka grupy
+  const card = (target && target.closest)
+    ? target.closest('.record-card, .catalog-card, .tree-leaf, .tree-node')
+    : null;
   const id = !card ? null
-    : card.classList.contains('catalog-card') ? 'cat:' + (card.getAttribute('data-cat') || '')
-    : card.getAttribute('data-id');
+    : (card.classList.contains('catalog-card') || card.classList.contains('tree-node'))
+      ? 'cat:' + (card.getAttribute('data-cat') || '')
+      : card.getAttribute('data-id');
   if (id && id === tipForId) return;
   cancelTilePreview();
   if (!id || !tipAllowed()) return;
@@ -5246,7 +5251,7 @@ function catalogPreviewHTML(name, items) {
     .map(x => `<span style="white-space:nowrap">${x.s.icon} ${x.n}</span>`)
     .join('&nbsp;&nbsp;');
   return `<div class="tt-head">
-      <span class="tt-name">\u{1F4C1} ${escAttr(groupLabelOf(name))}</span>
+      <span class="tt-name">${isSet(name) ? '\u{1F9E9}' : '\u{1F4C1}'} ${escAttr(groupLabelOf(name))}</span>
       <span style="white-space:nowrap">${items.length === 1 ? '1 szt.' : items.length + ' szt.'}</span>
     </div>
     <div class="tt-body">
@@ -5262,6 +5267,7 @@ function showTilePreview(id) {
 
   if (id.indexOf('cat:') === 0) {
     const name = id.slice(4);
+    if (!name || !catalogNames.includes(name)) return;
     tip.innerHTML = catalogPreviewHTML(name, allRecordsOf(name));
     positionTilePreview(tip);
     return;
