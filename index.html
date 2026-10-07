@@ -2567,6 +2567,31 @@ function groupTagOf(r) {
 // Etykieta grupy: najpierw firma, potem numer grupy, na końcu numery eksponatów,
 // np. "AFF Republic G21 20, 33". Liczona z zawartości, więc dodanie eksponatu
 // do grupy od razu dopisuje jego numer.
+// Firma kontenera: najczęstsza wśród jego eksponatów
+function companyOfItems(items) {
+  const counts = new Map();
+  items.forEach(r => {
+    const c = (r.company || '').trim() || 'Bez firmy';
+    counts.set(c, (counts.get(c) || 0) + 1);
+  });
+  if (!counts.size) return '';
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pl'))[0][0];
+}
+
+function sortNums(nums) {
+  return nums.slice().sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+}
+
+// Człony nazwy kontenera: komplety wchodzą jako K1, K2 (bez numerów swoich części),
+// a eksponaty przypisane wprost — jako swoje numery
+function containerParts(name) {
+  const tags = childSets(name).map(catTag).filter(Boolean);
+  const nums = sortNums(directRecordsOf(name).map(r => r.number).filter(Boolean));
+  return tags.concat(nums);
+}
+
+// Etykieta kontenera: firma, znacznik, potem człony — np. "Linebet G5 K1, K2, 151"
 function groupLabelOf(name) {
   const tag = catTag(name);
   const meta = catalogMeta[name] || {};
@@ -2576,17 +2601,9 @@ function groupLabelOf(name) {
   const items = allRecordsOf(name);
   if (!items.length) return name + (tag ? ' ' + tag : '');
 
-  const byCompany = new Map();
-  items.forEach(r => {
-    const c = (r.company || '').trim() || 'Bez firmy';
-    if (!byCompany.has(c)) byCompany.set(c, []);
-    if (r.number) byCompany.get(c).push(r.number);
-  });
-  return [...byCompany.entries()].map(([c, nums], i) => {
-    nums.sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
-    const head = c + (i === 0 && tag ? ' ' + tag : '');
-    return nums.length ? head + ' ' + nums.join(', ') : head;
-  }).join(' + ');
+  const company = companyOfItems(items);
+  const parts = containerParts(name);
+  return company + (tag ? ' ' + tag : '') + (parts.length ? ' ' + parts.join(', ') : '');
 }
 
 // Pełna nazwa eksponatu: firma + grupa + numer, np. "AFF Republic G1 #19"
@@ -3130,23 +3147,22 @@ function toggleSetSelect(name) {
 }
 
 // Nazwa z zaznaczonych kafelków: firma i jej numery po przecinku, np. "ACME 4, 12"
+// Nazwa podpowiadana przy tworzeniu: firma, znacznik (G albo K z następnym wolnym numerem),
+// potem zaznaczone komplety jako K1, K2 i numery zaznaczonych samodzielnych eksponatów
 function autoGroupName() {
-  let sel = records.filter(r => manageSelected[r.id]);
-  // Zaznaczony komplet wnosi do nazwy numery swoich części
-  Object.keys(manageSelectedSets).forEach(k => { sel = sel.concat(directRecordsOf(k)); });
-  if (!sel.length) return '';
-  const byCompany = new Map();
-  sel.forEach(r => {
-    const c = (r.company || '').trim() || 'Bez firmy';
-    if (!byCompany.has(c)) byCompany.set(c, []);
-    if (r.number) byCompany.get(c).push(r.number);
-  });
-  return [...byCompany.entries()]
-    .map(([c, nums]) => {
-      nums.sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
-      return nums.length ? c + ' ' + nums.join(', ') : c;
-    })
-    .join(' + ');
+  const recs = records.filter(r => manageSelected[r.id]);
+  const setNames = Object.keys(manageSelectedSets).filter(k => catalogNames.includes(k));
+  if (!recs.length && !setNames.length) return '';
+
+  // Firma liczona ze wszystkiego, co wejdzie do kontenera — także z części kompletów
+  let all = recs.slice();
+  setNames.forEach(k => { all = all.concat(directRecordsOf(k)); });
+  const company = companyOfItems(all);
+
+  const tag = (newKind === 'set' ? 'K' : 'G') + nextNumFor(newKind);
+  const parts = setNames.map(catTag).filter(Boolean)
+    .concat(sortNums(recs.map(r => r.number).filter(Boolean)));
+  return company + ' ' + tag + (parts.length ? ' ' + parts.join(', ') : '');
 }
 
 function applyAutoGroupName() {
@@ -3171,6 +3187,8 @@ function setNewKind(kind, skipRender) {
   });
   const btn = document.getElementById('group-save-btn');
   if (btn) btn.textContent = (kind === 'set') ? '✓ Utwórz komplet' : '✓ Utwórz grupę';
+  // Znacznik w nazwie zależy od rodzaju, więc podpowiedziana nazwa musi się odświeżyć
+  if (!groupNameTouched) applyAutoGroupName();
   if (!skipRender && groupNewMode) { applyFilters(); updateAssignBar(); }
 }
 
