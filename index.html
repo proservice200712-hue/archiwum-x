@@ -250,6 +250,67 @@
     transition: transform 0.15s, box-shadow 0.15s;
   }
   .catalog-card:hover .cat-face { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,0.15); }
+  /* ==================== DRZEWKO ZAWARTOŚCI GRUPY ==================== */
+  .tree {
+    display: flex; align-items: flex-start;
+    padding: 16px 20px; gap: 0; overflow-x: auto;
+  }
+  .tree-col { display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+  .tree-col + .tree-col { padding-left: 28px; position: relative; }
+  /* pionowa lińka spinająca gałęzie w kolumnie */
+  .tree-col + .tree-col::before {
+    content: ''; position: absolute; left: 13px; top: 20px; bottom: 20px;
+    border-left: 2px solid #cbd5e0;
+  }
+  .tree-col + .tree-col > .tree-item:only-child::after { content: none; }
+  .tree-item { position: relative; }
+  /* poziomy odcinek od lińki do węzła */
+  .tree-col + .tree-col .tree-item::before {
+    content: ''; position: absolute; left: -15px; top: 20px; width: 15px;
+    border-top: 2px solid #cbd5e0;
+  }
+  .tree-node {
+    background: #fff; border: 2px solid #cbd5e0;
+    padding: 8px 12px; min-width: 190px; max-width: 260px;
+    box-shadow: var(--shadow);
+  }
+  .tree-node.klik { cursor: pointer; }
+  .tree-node.klik:hover { border-color: var(--blue); }
+  .tree-root { border-color: var(--blue); background: #ebf8ff; }
+  .tree-set { border-color: var(--yellow); background: #fffff0; }
+  .tn-title { font-weight: 800; font-size: 0.84rem; overflow-wrap: anywhere; }
+  .tn-sub { font-size: 0.72rem; color: var(--gray); margin-top: 2px; }
+  .tn-dots { font-size: 0.72rem; font-weight: 700; color: var(--gray); margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; }
+  /* części kompletu — wcięte pod jego węzłem */
+  .tn-parts { margin: 8px 0 0 18px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .tn-parts::before {
+    content: ''; position: absolute; left: -9px; top: 0; bottom: 14px;
+    border-left: 2px dotted #cbd5e0;
+  }
+  .tree-leaf {
+    display: flex; align-items: center; gap: 7px;
+    background: #fff; border: 1px solid #e2e8f0; padding: 4px 7px;
+    cursor: pointer; min-width: 170px; position: relative;
+  }
+  .tn-parts .tree-leaf::before {
+    content: ''; position: absolute; left: -9px; top: 50%; width: 9px;
+    border-top: 2px dotted #cbd5e0;
+  }
+  .tree-leaf:hover { border-color: var(--blue); background: #f7fafc; }
+  .tree-leaf img { width: 30px; height: 24px; object-fit: contain; background: #f0f4f8; flex-shrink: 0; }
+  .tl-ph { width: 30px; text-align: center; flex-shrink: 0; }
+  .tl-dot { width: 8px; height: 8px; flex-shrink: 0; }
+  .tl-name { font-size: 0.74rem; font-weight: 700; overflow-wrap: anywhere; }
+  .tree-colhead {
+    font-size: 0.68rem; font-weight: 800; color: var(--gray);
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;
+  }
+  @media (max-width: 700px) {
+    .tree { padding: 12px; }
+    .tree-node { min-width: 150px; }
+    .tree-leaf { min-width: 140px; }
+  }
+
   /* Komplet (jedno logo z części) odróżnia się od grupy kolorem ramki */
   .catalog-card.is-set .cat-face { border-color: var(--yellow); }
   /* Komplet zaznaczony do wrzucenia w grupę */
@@ -2258,14 +2319,20 @@ function renderList(filteredRecords) {
     }
     html = setsHTML + (list.length ? `<div class="records-grid">${list.map(r => recordCardHTML(r)).join('')}</div>` : '');
   } else if (currentCatalog) {
-    // W grupie najpierw jej komplety, potem eksponaty przypisane wprost do grupy
-    const sets = childSets(currentCatalog);
-    if (sets.length) {
-      html += `<div class="records-grid">${sets.map(n =>
-        catalogTileHTML(n, allRecordsOf(n))).join('')}</div>`;
+    // Otwarta grupa pokazuje drzewko: grupa → komplety z częściami → samodzielne eksponaty.
+    // W trybach zaznaczania i przy szukaniu zostają zwykłe kafelki, bo trzeba w nie klikać.
+    if (!isSet(currentCatalog) && !printSelectMode && !filtersActive) {
+      html += treeHTML(currentCatalog);
+      list = [];
+    } else {
+      const sets = childSets(currentCatalog);
+      if (sets.length) {
+        html += `<div class="records-grid">${sets.map(n =>
+          catalogTileHTML(n, allRecordsOf(n))).join('')}</div>`;
+      }
+      list = list.filter(r => (r.catalog || '') === currentCatalog);
+      if (list.length) html += recordsHTML(list);
     }
-    list = list.filter(r => (r.catalog || '') === currentCatalog);
-    if (list.length) html += recordsHTML(list);
   } else {
     const inCatalog = r => r.catalog && catalogNames.includes(r.catalog);
     const tileFor = n => catalogTileHTML(n, allRecordsOf(n));
@@ -2606,10 +2673,11 @@ function groupLabelOf(name) {
   return company + (tag ? ' ' + tag : '') + (parts.length ? ' ' + parts.join(', ') : '');
 }
 
-// Pełna nazwa eksponatu: firma + grupa + numer, np. "AFF Republic G1 #19"
+// Nazwa eksponatu zawsze taka sama, niezależnie od tego, czy leży w komplecie
+// albo w grupie — np. "Linebet #151". Przynależność widać na podpisie kafelka
+// i na etykiecie kontenera, więc w nazwie by tylko przeszkadzała.
 function recordTitleOf(r) {
-  const tag = groupTagOf(r);
-  return (r.company || '—') + (tag ? ' ' + tag : '') + (r.number ? ' #' + r.number : '');
+  return (r.company || '—') + (r.number ? ' #' + r.number : '');
 }
 
 // Grupy zalożone przed wprowadzeniem numeracji dostają numery jednorazowo:
@@ -2894,6 +2962,67 @@ function catalogAutoImage(items) {
 function catalogImageFor(name, items) {
   const manual = catalogMeta[name] && catalogMeta[name].image;
   return manual || catalogAutoImage(items);
+}
+
+// ==================== DRZEWKO ZAWARTOŚCI GRUPY ====================
+// Grupa po lewej, obok jej komplety z częściami, a po prawej eksponaty
+// przypisane wprost do grupy — wszystko widoczne naraz, bez wchodzenia głębiej.
+function statusDotsHTML(items) {
+  return STATUS_DEFS
+    .map(d => ({ d, n: items.filter(r => r.status === d.value).length }))
+    .filter(x => x.n > 0)
+    .map(x => `<span title="${x.d.label}">${x.d.icon} ${x.n}</span>`)
+    .join('');
+}
+
+function treeLeafHTML(r) {
+  const ph = coverPhotoOf(r);
+  return `<div class="tree-leaf" onclick="showDetail('${r.id}')" title="Otwórz kartę eksponatu">
+    <span class="tl-dot" style="background:${statusColor(r.status)}"></span>
+    ${ph ? `<img src="${escAttr(ph)}" alt="">` : '<span class="tl-ph">\u{1F4E6}</span>'}
+    <span class="tl-name">${escAttr(recordTitleOf(r))}</span>
+  </div>`;
+}
+
+function treeHTML(name) {
+  const sets = childSets(name);
+  const direct = directRecordsOf(name);
+  const all = allRecordsOf(name);
+
+  const root = `<div class="tree-col">
+    <div class="tree-colhead">${isSet(name) ? 'Komplet' : 'Grupa'}</div>
+    <div class="tree-item">
+      <div class="tree-node tree-root">
+        <div class="tn-title">${escAttr(groupLabelOf(name))}</div>
+        <div class="tn-sub">${sets.length ? kompletyLabel(sets.length) + ' · ' : ''}${all.length} szt.</div>
+        <div class="tn-dots">${statusDotsHTML(all)}</div>
+      </div>
+    </div>
+  </div>`;
+
+  const setsCol = sets.length ? `<div class="tree-col">
+    <div class="tree-colhead">Komplety</div>
+    ${sets.map(k => {
+      const parts = directRecordsOf(k);
+      return `<div class="tree-item">
+        <div class="tree-node tree-set klik" onclick="openCatalog('${k.replace(/'/g, "\\'")}')" title="Otwórz komplet">
+          <div class="tn-title">\u{1F9E9} ${escAttr(groupLabelOf(k))}</div>
+          <div class="tn-sub">${parts.length === 1 ? 'komplet — 1 część' : 'komplet — ' + parts.length + ' części'}</div>
+        </div>
+        ${parts.length ? `<div class="tn-parts">${parts.map(treeLeafHTML).join('')}</div>` : ''}
+      </div>`;
+    }).join('')}
+  </div>` : '';
+
+  const directCol = direct.length ? `<div class="tree-col">
+    <div class="tree-colhead">Samodzielne</div>
+    ${direct.map(r => `<div class="tree-item">${treeLeafHTML(r)}</div>`).join('')}
+  </div>` : '';
+
+  if (!sets.length && !direct.length) {
+    return `<div class="tree">${root}</div>`;
+  }
+  return `<div class="tree">${root}${setsCol}${directCol}</div>`;
 }
 
 function catalogTileHTML(name, items, selectable) {
@@ -4800,8 +4929,7 @@ async function generatePrintPdf(recs, printMode, fileLabel) {
       for (var a = 0; a < recs.length; a++) {
         var rm = recs[a];
         var qrm = await makeQRDataUrl(qrTextFor(rm));
-        var tag = groupTagOf(rm);
-        items.push({ qr: qrm, name: (rm.company || '-') + (tag ? ' ' + tag : ''), number: (rm.number != null ? rm.number : '') });
+        items.push({ qr: qrm, name: rm.company || '-', number: (rm.number != null ? rm.number : '') });
       }
       drawMiniQRGrid(doc, items);
     } else if (printMode === 'qr') {
