@@ -707,9 +707,10 @@
     border-radius: 8px;
     overflow: hidden;
     height: 140px;
-    background: var(--lightgray);
+    background: #f0f4f8;
   }
-  .photo-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+  /* contain, nie cover — po wklejeniu ma być widoczny cały obrazek, bez obcinania */
+  .photo-preview-item img { width: 100%; height: 100%; object-fit: contain; }
   .photo-preview-item .photo-label {
     position: absolute;
     bottom: 0; left: 0; right: 0;
@@ -1632,17 +1633,17 @@
           <p style="font-size:0.78rem; color:var(--gray); margin-bottom:8px; font-weight:600;">🖥️ PRINT SCREEN</p>
           <div style="display:flex; gap:6px; margin-bottom:6px">
             <button type="button" class="btn btn-gray btn-sm" style="flex:1" onclick="document.getElementById('photo-screen').click()">🖥️ Wybierz plik</button>
-            <button type="button" class="btn btn-primary btn-sm" style="flex:1" onclick="activatePaste()">📋 Wklej Ctrl+V</button>
+            <button type="button" class="btn btn-primary btn-sm" style="flex:1" onclick="activatePaste('screen')">📋 Wklej</button>
           </div>
           <input type="file" id="photo-screen" accept="image/*" style="display:none" onchange="handlePhoto(this,'screen')">
           <div id="preview-screen">
             <div class="photo-upload-area" id="paste-area-screen"
               style="padding:12px; cursor:pointer; border:2px dashed #bee3f8; background:#ebf8ff;"
-              onclick="this.focus()"
+              onclick="activatePaste('screen')"
               tabindex="0"
-              title="Kliknij i wklej Ctrl+V">
+              title="Kliknij, aby wkleić ze schowka">
               <div style="font-size:1.5rem">📋</div>
-              <div style="font-size:0.75rem; color:var(--blue); font-weight:600;">Kliknij tu i wklej<br>Ctrl+V / ⌘V</div>
+              <div class="paste-hint" style="font-size:0.75rem; color:var(--blue); font-weight:600;">Kliknij, aby wkleić<br>ze schowka</div>
             </div>
           </div>
         </div>
@@ -2867,7 +2868,18 @@ function renderCatalogImagePreview(tempUrl, label) {
     <div style="font-size:0.76rem;color:var(--gray);text-align:center;margin-top:6px">${note}</div>`;
 }
 
-function activateCatalogPaste() {
+async function activateCatalogPaste() {
+  // Tak samo jak przy zdjęciach eksponatu: najpierw próba wprost ze schowka
+  const ze = await obrazekZeSchowka();
+  if (ze && ze !== 'brak-obrazka') {
+    handleCatalogImageFile(ze);
+    return;
+  }
+  if (ze === 'brak-obrazka') {
+    showToast('W schowku nie ma obrazka — skopiuj go i kliknij ponownie', 'error');
+    return;
+  }
+
   catalogPasteActive = true;
   const area = document.getElementById('paste-area-catalog');
   if (area) {
@@ -3730,8 +3742,8 @@ function resetForm() {
   const prodOther = document.getElementById('f-producer-other');
   if (prodOther) prodOther.value = '';
   document.getElementById('subtype-wrap').style.display = 'none';
-  document.getElementById('preview-camera').innerHTML = '';
-  document.getElementById('preview-screen').innerHTML = '';
+  document.getElementById('preview-camera').innerHTML = pusteObszarWklejania('camera');
+  document.getElementById('preview-screen').innerHTML = pusteObszarWklejania('screen');
   selectedMount = [];
   selectedLightColors = [];
   selectedLighting = [];
@@ -3842,6 +3854,21 @@ async function uploadToCloudinary(file) {
   return data.secure_url.replace('/upload/', '/upload/w_800,h_800,c_limit,q_auto,f_auto/');
 }
 
+// Puste pole zdjęcia — kreskowany obszar zachęcający do wklejenia.
+// Trzeba je odtwarzać po wyczyszczeniu formularza i po usunięciu zdjęcia,
+// bo w przeciwnym razie przepada na dobre (jest tylko w statycznym HTML).
+function pusteObszarWklejania(type) {
+  const kamera = (type === 'camera');
+  return `<div class="photo-upload-area" id="paste-area-${type}"
+      style="padding:12px; cursor:pointer; border:2px dashed #bee3f8; background:#ebf8ff;"
+      onclick="activatePaste('${type}')" tabindex="0"
+      title="Kliknij, aby wkleić ze schowka">
+      <div style="font-size:1.5rem">${kamera ? '\u{1F4F7}' : '\u{1F4CB}'}</div>
+      <div class="paste-hint" style="font-size:0.75rem; color:var(--blue); font-weight:600;">${
+        kamera ? 'Aparat / Galeria<br>albo kliknij i wklej' : 'Kliknij, aby wkleić<br>ze schowka'}</div>
+    </div>`;
+}
+
 function handlePhoto(input, type) {
   const file = input.files[0];
   if (!file) return;
@@ -3851,7 +3878,7 @@ function handlePhoto(input, type) {
   reader.onload = e => {
     const container = document.getElementById('preview-' + type);
     container.innerHTML = `<div class="photo-preview-item" style="height:90px; border-radius:8px; overflow:hidden; position:relative; background:#edf2f7;">
-      <img src="${e.target.result}" alt="podgląd" style="width:100%;height:100%;object-fit:cover;opacity:0.5;">
+      <img src="${e.target.result}" alt="podgląd" style="width:100%;height:100%;object-fit:contain;opacity:0.5;">
       <div class="photo-label">Wgrywanie...</div>
     </div>`;
   };
@@ -3863,7 +3890,7 @@ function handlePhoto(input, type) {
     photoData[type] = url;
     const container = document.getElementById('preview-' + type);
     container.innerHTML = `<div class="photo-preview-item" style="height:90px; border-radius:8px; overflow:hidden; position:relative; background:#edf2f7;">
-      <img src="${url}" alt="podgląd" style="width:100%;height:100%;object-fit:cover;">
+      <img src="${url}" alt="podgląd" style="width:100%;height:100%;object-fit:contain;">
       <button class="photo-remove" onclick="removePhoto('${type}')">✕</button>
       <div class="photo-label">✅ Wgrano</div>
     </div>`;
@@ -3876,7 +3903,7 @@ function handlePhoto(input, type) {
       photoData[type] = e.target.result;
       const container = document.getElementById('preview-' + type);
       container.innerHTML = `<div class="photo-preview-item" style="height:90px; border-radius:8px; overflow:hidden; position:relative; background:#edf2f7;">
-        <img src="${e.target.result}" alt="podgląd" style="width:100%;height:100%;object-fit:cover;">
+        <img src="${e.target.result}" alt="podgląd" style="width:100%;height:100%;object-fit:contain;">
         <button class="photo-remove" onclick="removePhoto('${type}')">✕</button>
         <div class="photo-label">lokalnie</div>
       </div>`;
@@ -3887,7 +3914,7 @@ function handlePhoto(input, type) {
 
 function removePhoto(type) {
   photoData[type] = null;
-  document.getElementById('preview-' + type).innerHTML = '';
+  document.getElementById('preview-' + type).innerHTML = pusteObszarWklejania(type);
 }
 
 // ==================== UWAGI Z DATAMI ====================
@@ -4200,12 +4227,12 @@ function editCurrentRecord() {
   coverChoice = (r.cover === 'screen') ? 'screen' : 'camera';
   updateCoverSeg();
   if (r.photoCamera) document.getElementById('preview-camera').innerHTML = `<div class="photo-preview-item" style="height:90px;border-radius:8px;overflow:hidden;position:relative;background:#edf2f7;">
-    <img src="${r.photoCamera}" alt="podgląd" style="width:100%;height:100%;object-fit:cover;">
+    <img src="${r.photoCamera}" alt="podgląd" style="width:100%;height:100%;object-fit:contain;">
     <button class="photo-remove" onclick="removePhoto('camera')">✕</button>
     <div class="photo-label">✅ Wgrano</div>
   </div>`;
   if (r.photoScreen) document.getElementById('preview-screen').innerHTML = `<div class="photo-preview-item" style="height:90px;border-radius:8px;overflow:hidden;position:relative;background:#edf2f7;">
-    <img src="${r.photoScreen}" alt="podgląd" style="width:100%;height:100%;object-fit:cover;">
+    <img src="${r.photoScreen}" alt="podgląd" style="width:100%;height:100%;object-fit:contain;">
     <button class="photo-remove" onclick="removePhoto('screen')">✕</button>
     <div class="photo-label">✅ Wgrano</div>
   </div>`;
@@ -5327,18 +5354,54 @@ function showToast(msg, type) {
 let pasteActive = false;
 let pasteTarget = 'screen';
 
-function activatePaste(type) {
+// Próba odczytania obrazka wprost ze schowka. Zwraca plik albo null,
+// gdy przeglądarka nie pozwala (wtedy zostaje tryb oczekiwania na Ctrl+V).
+async function obrazekZeSchowka() {
+  if (!navigator.clipboard || !navigator.clipboard.read) return null;
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const typ = item.types.find(t => t.indexOf('image/') === 0);
+      if (typ) {
+        const blob = await item.getType(typ);
+        return new File([blob], 'wklejone.png', { type: blob.type || 'image/png' });
+      }
+    }
+    return 'brak-obrazka';   // schowek czytalny, ale nie ma w nim obrazka
+  } catch (e) {
+    return null;             // brak zgody albo brak wsparcia
+  }
+}
+
+function oznaczPoleWklejania(type) {
+  const area = document.getElementById('paste-area-' + type);
+  if (!area) return;
+  area.style.borderColor = '#3182ce';
+  area.style.background = '#bee3f8';
+  const hint = area.querySelector('.paste-hint') || area.querySelector('div:last-child');
+  if (hint) hint.textContent = '⌨️ Teraz naciśnij Ctrl+V';
+  area.focus();
+}
+
+async function activatePaste(type) {
   type = type || 'screen';
   pasteTarget = type;
-  pasteActive = true;
-  const area = document.getElementById('paste-area-' + type);
-  if (area) {
-    area.style.borderColor = '#3182ce';
-    area.style.background = '#bee3f8';
-    const hint = area.querySelector('.paste-hint') || area.querySelector('div:last-child');
-    if (hint) hint.textContent = '⌨️ Teraz naciśnij Ctrl+V';
-    area.focus();
+
+  // Jedno kliknięcie ma wystarczyć — najpierw sięgamy do schowka sami
+  const ze = await obrazekZeSchowka();
+  if (ze && ze !== 'brak-obrazka') {
+    handlePhoto({ files: [ze] }, type);
+    showToast('Wklejono zdjęcie! ✅', 'success');
+    return;
   }
+  if (ze === 'brak-obrazka') {
+    showToast('W schowku nie ma obrazka — skopiuj go i kliknij ponownie', 'error');
+    return;
+  }
+
+  // Przeglądarka nie dała dostępu do schowka — zostaje Ctrl+V
+  pasteActive = true;
+  oznaczPoleWklejania(type);
   showToast('Naciśnij Ctrl+V aby wkleić zdjęcie', '');
   setTimeout(() => { pasteActive = false; }, 10000);
 }
