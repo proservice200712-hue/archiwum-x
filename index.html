@@ -1133,9 +1133,13 @@
     margin-left: auto; background: var(--red); color: #fff;
     font-size: 0.68rem; font-weight: 800; padding: 1px 7px;
   }
+  /* Zaznaczenie wyboru w menu — zwykły ptaszek, bez tła licznika */
+  #hdr-menu .hm-check { margin-left: auto; color: var(--blue); font-weight: 900; }
 
   /* ==================== PANEL FILTRÓW (wysuwany) ==================== */
   #btn-filters.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  /* Włączony filtr statusu widoczny na przycisku w pasku */
+  header #btn-status.status-wlaczony { background: var(--blue); color: #fff; border-color: var(--blue); }
   .flt-dot {
     display: none;
     width: 8px; height: 8px;
@@ -1439,6 +1443,8 @@
     <button class="btn btn-primary btn-sm no-print" id="btn-new" onclick="showNewForm()">+ Nowy</button>
     <button class="btn btn-ghost btn-sm no-print" onclick="showScanner()">Skanuj QR</button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-qr-print" onclick="openQRMenu()" title="Drukuj wiele: karty / QR / Mini QR">Drukuj</button>
+    <button class="btn btn-ghost btn-sm no-print hb-mobile" id="btn-status" onclick="toggleStatusMenu(event)"
+      title="Pokaż tylko wybrany status"><span id="btn-status-label">Status</span></button>
     <button class="btn btn-ghost btn-sm no-print" id="btn-group" onclick="startGroupNew()" title="Zaznacz kafelki i połącz je w katalog">Grupuj</button>
     <button class="btn btn-ghost btn-sm no-print hb-desktop" id="btn-filters" onclick="toggleFiltersPanel()" title="Szukaj, filtruj, sortuj, sekcje">🔍 Szukaj i filtry ▾<span class="flt-dot" id="filters-dot"></span></button>
     <button class="btn btn-primary btn-sm no-print" id="guest-login-btn" onclick="exitGuestMode()" style="display:none">🔑 Zaloguj się</button>
@@ -3645,6 +3651,7 @@ function applyFilters() {
   currentFilter = status;
   filtersActive = !!(q || status || type || lightcolor || producer);
   updateFiltersDot();
+  updateStatusBtn();
 
   const filtered = records.filter(r => {
     // Archiwum ukryte gdy nie wybrano jako filtr
@@ -3675,6 +3682,7 @@ function clearFilters() {
   currentFilter = '';
   filtersActive = false;
   updateFiltersDot();
+  updateStatusBtn();
   renderList();
 }
 
@@ -5123,18 +5131,64 @@ function toggleHdrMenu(ev) {
   }
   html += `<div class="hm-sep"></div><button onclick="closeHdrMenu();doLogout()">🚪 Wyloguj</button>`;
   menu.innerHTML = html;
+  menu.dataset.kind = 'user';
+  ustawMenuPod(menu, ev.currentTarget);
+}
 
-  // Pozycjonowanie pod przyciskiem, z marginesem od krawędzi ekranu
-  const box = ev.currentTarget.getBoundingClientRect();
+// Menu ustawia się pod przyciskiem, z marginesem od krawędzi ekranu
+function ustawMenuPod(menu, anchor) {
+  const box = anchor.getBoundingClientRect();
   menu.style.display = 'block';
   const w = menu.offsetWidth;
   menu.style.top = (box.bottom + 6) + 'px';
   menu.style.left = Math.max(8, Math.min(box.right - w, window.innerWidth - w - 8)) + 'px';
 }
 
+// ==================== SZYBKI FILTR STATUSU (pasek na telefonie) ====================
+function toggleStatusMenu(ev) {
+  ev.stopPropagation();
+  const menu = document.getElementById('hdr-menu');
+  if (menu.style.display === 'block' && menu.dataset.kind === 'status') { closeHdrMenu(); return; }
+
+  const sel = document.getElementById('filter-status');
+  const cur = sel ? sel.value : '';
+  const ptaszek = v => (v === cur) ? '<span class="hm-check">✓</span>' : '';
+
+  let html = '<div class="hm-title">Pokaż status</div>';
+  html += `<button onclick="wybierzStatus('')">▦ Wszystkie${ptaszek('')}</button>`;
+  STATUS_DEFS.forEach(d => {
+    html += `<button onclick="wybierzStatus('${d.value}')">${d.icon} ${escAttr(d.label)}${ptaszek(d.value)}</button>`;
+  });
+  menu.innerHTML = html;
+  menu.dataset.kind = 'status';
+  ustawMenuPod(menu, ev.currentTarget);
+}
+
+function wybierzStatus(v) {
+  closeHdrMenu();
+  const sel = document.getElementById('filter-status');
+  if (sel) sel.value = v;
+  currentFilter = v;
+  applyFilters();
+  const d = STATUS_DEFS.find(x => x.value === v);
+  showToast(d ? 'Pokażuję: ' + d.label : 'Pokażuję wszystkie statusy', '');
+}
+
+// Na przycisku widnieje wybrany status, żeby po zwinięciu filtrów było wiadomo, co jest włączone
+function updateStatusBtn() {
+  const lab = document.getElementById('btn-status-label');
+  const btn = document.getElementById('btn-status');
+  if (!lab || !btn) return;
+  const sel = document.getElementById('filter-status');
+  const v = sel ? sel.value : '';
+  const d = STATUS_DEFS.find(x => x.value === v);
+  lab.textContent = d ? d.icon + ' ' + d.label : 'Status';
+  btn.classList.toggle('status-wlaczony', !!d);
+}
+
 function closeHdrMenu() {
   const menu = document.getElementById('hdr-menu');
-  if (menu) menu.style.display = 'none';
+  if (menu) { menu.style.display = 'none'; menu.dataset.kind = ''; }
 }
 
 document.addEventListener('click', function(e) {
@@ -5714,7 +5768,7 @@ let guestMode = false;
 
 function setGuestUI(on) {
   // W trybie gościa ukryj wszystko poza skanowaniem
-  ['btn-new','btn-qr-print','btn-group','btn-burger','btn-filters','btn-catalogs'].forEach(id => {
+  ['btn-new','btn-qr-print','btn-group','btn-burger','btn-filters','btn-catalogs','btn-status'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('guest-hidden', on);
   });
