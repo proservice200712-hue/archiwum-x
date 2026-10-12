@@ -894,6 +894,20 @@
   .history-item:last-child { border-bottom: none; }
   .history-date { color: var(--gray); font-size: 0.75rem; }
 
+  /* Historia targów: przeciąganie na komputerze, strzałki zostają dla telefonu */
+  .fair-grip {
+    cursor: grab; color: #a0aec0; font-size: 1.05rem;
+    padding: 0 2px; user-select: none; line-height: 1;
+  }
+  .fair-grip:active { cursor: grabbing; }
+  .fair-row.fair-dragged { opacity: 0.4; }
+  /* kreska pokazuje, gdzie wpis wyląduje */
+  .fair-row.fair-drop-above { box-shadow: inset 0 3px 0 var(--blue); }
+  .fair-row.fair-drop-below { box-shadow: inset 0 -3px 0 var(--blue); }
+  @media (max-width: 760px) {
+    .fair-grip { display: none; }
+  }
+
   /* FIREBASE SETUP MODAL */
   .modal-overlay {
     position: fixed; inset: 0;
@@ -3986,14 +4000,71 @@ function renderFairHistory() {
   if (!el) return;
   if (fairHistory.length === 0) { el.innerHTML = '<em>Brak wpisów</em>'; return; }
   el.innerHTML = fairHistory.map((h,i) => `
-    <div class="history-item" style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+    <div class="history-item fair-row" draggable="true"
+      ondragstart="fairDragStart(event,${i})" ondragover="fairDragOver(event,${i})"
+      ondragleave="fairDragLeave(event)" ondrop="fairDrop(event,${i})" ondragend="fairDragEnd(event)"
+      style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+      <span class="fair-grip" title="Przeciągnij, aby zmienić kolejność">⠿</span>
       <div style="flex:1;min-width:0"><strong>${escAttr(h.text)}</strong></div>
-      <button class="btn btn-gray btn-sm" onclick="moveFairEntry(${i},-1)"
+      <button class="btn btn-gray btn-sm" draggable="false" onclick="moveFairEntry(${i},-1)"
         title="Wyżej"${i === 0 ? ' disabled style="opacity:0.35"' : ''}>↑</button>
-      <button class="btn btn-gray btn-sm" onclick="moveFairEntry(${i},1)"
+      <button class="btn btn-gray btn-sm" draggable="false" onclick="moveFairEntry(${i},1)"
         title="Niżej"${i === fairHistory.length - 1 ? ' disabled style="opacity:0.35"' : ''}>↓</button>
-      <button class="btn btn-gray btn-sm" onclick="removeFairEntry(${i})" title="Usuń">✕</button>
+      <button class="btn btn-gray btn-sm" draggable="false" onclick="removeFairEntry(${i})" title="Usuń">✕</button>
     </div>`).join('');
+}
+
+// ---- Przeciąganie wpisów historii targów (komputer; na telefonie służą strzałki) ----
+let fairDragFrom = null;
+
+function fairDragStart(ev, i) {
+  fairDragFrom = i;
+  if (ev.dataTransfer) {
+    ev.dataTransfer.effectAllowed = 'move';
+    // Bez ustawienia danych część przeglądarek nie rozpocznie przeciągania
+    try { ev.dataTransfer.setData('text/plain', String(i)); } catch(e) {}
+  }
+  ev.currentTarget.classList.add('fair-dragged');
+}
+
+// Czy kursor jest w górnej połowie wiersza — stąd wiadomo, czy wrzucić nad czy pod
+function fairNadWierszem(ev, row) {
+  const box = row.getBoundingClientRect();
+  return (ev.clientY - box.top) < box.height / 2;
+}
+
+function fairDragOver(ev, i) {
+  if (fairDragFrom === null) return;
+  ev.preventDefault();
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+  const row = ev.currentTarget;
+  const nad = fairNadWierszem(ev, row);
+  row.classList.toggle('fair-drop-above', nad);
+  row.classList.toggle('fair-drop-below', !nad);
+}
+
+function fairDragLeave(ev) {
+  ev.currentTarget.classList.remove('fair-drop-above', 'fair-drop-below');
+}
+
+function fairDrop(ev, i) {
+  ev.preventDefault();
+  const from = fairDragFrom;
+  fairDragFrom = null;
+  if (from === null) return;
+  let to = fairNadWierszem(ev, ev.currentTarget) ? i : i + 1;
+  // Po wyjęciu wpisu indeksy poniżej przesuwają się o jeden
+  if (to > from) to--;
+  if (to !== from && to >= 0 && to < fairHistory.length) {
+    const wpis = fairHistory.splice(from, 1)[0];
+    fairHistory.splice(to, 0, wpis);
+  }
+  renderFairHistory();
+}
+
+function fairDragEnd() {
+  fairDragFrom = null;
+  renderFairHistory();   // czyści podświetlenia po nieudanym przeciągnięciu
 }
 
 // Kolejność wpisów ustala użytkownik — data dodania nie musi jej narzucać
