@@ -3986,10 +3986,24 @@ function renderFairHistory() {
   if (!el) return;
   if (fairHistory.length === 0) { el.innerHTML = '<em>Brak wpisów</em>'; return; }
   el.innerHTML = fairHistory.map((h,i) => `
-    <div class="history-item" style="display:flex;justify-content:space-between;align-items:center">
-      <div><strong>${h.text}</strong> <span class="history-date">— ${h.date}</span></div>
-      <button class="btn btn-gray btn-sm" onclick="removeFairEntry(${i})">✕</button>
+    <div class="history-item" style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+      <div style="flex:1;min-width:0"><strong>${escAttr(h.text)}</strong></div>
+      <button class="btn btn-gray btn-sm" onclick="moveFairEntry(${i},-1)"
+        title="Wyżej"${i === 0 ? ' disabled style="opacity:0.35"' : ''}>↑</button>
+      <button class="btn btn-gray btn-sm" onclick="moveFairEntry(${i},1)"
+        title="Niżej"${i === fairHistory.length - 1 ? ' disabled style="opacity:0.35"' : ''}>↓</button>
+      <button class="btn btn-gray btn-sm" onclick="removeFairEntry(${i})" title="Usuń">✕</button>
     </div>`).join('');
+}
+
+// Kolejność wpisów ustala użytkownik — data dodania nie musi jej narzucać
+function moveFairEntry(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= fairHistory.length) return;
+  const tmp = fairHistory[i];
+  fairHistory[i] = fairHistory[j];
+  fairHistory[j] = tmp;
+  renderFairHistory();
 }
 
 function removeFairEntry(i) {
@@ -4203,7 +4217,7 @@ function showDetail(id) {
   // History
   const histEl = document.getElementById('d-history');
   if (r.fairHistory && r.fairHistory.length) {
-    histEl.innerHTML = r.fairHistory.map(h => `<div class="history-item"><strong>${h.text}</strong> <span class="history-date">— ${h.date}</span></div>`).join('');
+    histEl.innerHTML = r.fairHistory.map(h => `<div class="history-item"><strong>${escAttr(h.text)}</strong></div>`).join('');
   } else {
     histEl.innerHTML = '<em style="color:var(--gray); font-size:0.85rem">Brak historii</em>';
   }
@@ -4556,12 +4570,11 @@ function fireConfetti() {
 }
 
 // Rysuje kartę A5 z QR (layout eksportu QR) na bieżącej stronie dokumentu
-function drawQRCard(doc, r, qrDataUrl, imgDims) {
+function drawQRCard(doc, r, qrDataUrl, imgDims, imgDims2) {
   var W = 210, H = 297;
   var CW = 148, CH = 210; // A5 pionowe
   var CX = (W - CW) / 2, CY = (H - CH) / 2;
   var m = 8;
-  var _preloadedW = imgDims ? imgDims.w : 0, _preloadedH = imgDims ? imgDims.h : 0;
 
   doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
   doc.roundedRect(CX, CY, CW, CH, 3, 3, 'S');
@@ -4587,32 +4600,41 @@ function drawQRCard(doc, r, qrDataUrl, imgDims) {
   var cy = CY + headerH + 7;
   var bottom = CY + CH - m;
 
+  // Oba zdjecia obok siebie: z aparatu i print screen. Gdy jest tylko jedno,
+  // zajmuje cala szerokosc jak dotychczas.
   var photoBoxH = 58;
-  var blockPhoto = coverPhotoOf(r);
-  var blockPhotoLabel = !blockPhoto ? null : (blockPhoto === r.photoCamera ? 'Zdjecie' : 'Print screen');
-  if (blockPhoto) {
-    try {
-      var dims = (_preloadedW && _preloadedH) ? {w:_preloadedW, h:_preloadedH} : {w:4, h:3};
-      var dw = innerW, dh = dw * dims.h / dims.w;
-      if (dh > photoBoxH) { dh = photoBoxH; dw = dh * dims.w / dims.h; }
-      var ix = innerX + (innerW - dw) / 2;
-      var iy = cy + (photoBoxH - dh) / 2;
-      doc.addImage(blockPhoto, 'JPEG', ix, iy, dw, dh);
-    } catch(e) {
-      doc.setFillColor(240,240,240);
-      doc.roundedRect(innerX, cy, innerW, photoBoxH, 2, 2, 'F');
-      doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
-      doc.text('Brak zdjecia', innerX+innerW/2, cy+photoBoxH/2, {align:'center'});
-    }
-  } else {
+  var fotki = [];
+  if (r.photoCamera) fotki.push({ src: r.photoCamera, label: 'Zdjecie', dims: imgDims });
+  if (r.photoScreen) fotki.push({ src: r.photoScreen, label: 'Print screen', dims: imgDims2 });
+  // Okladka idzie pierwsza, zeby kolejnosc zgadzala sie z kafelkiem
+  if (fotki.length === 2 && r.cover === 'screen') fotki.reverse();
+
+  var brakZdjecia = function(bx, bw) {
     doc.setFillColor(240,240,240);
-    doc.roundedRect(innerX, cy, innerW, photoBoxH, 2, 2, 'F');
+    doc.roundedRect(bx, cy, bw, photoBoxH, 2, 2, 'F');
     doc.setFontSize(8); doc.setTextColor(180,180,180); doc.setFont('helvetica','normal');
-    doc.text('Brak zdjecia', innerX+innerW/2, cy+photoBoxH/2, {align:'center'});
-  }
-  if (blockPhotoLabel) {
-    doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
-    doc.text(blockPhotoLabel, innerX+innerW/2, cy+photoBoxH+3, {align:'center'});
+    doc.text('Brak zdjecia', bx + bw/2, cy + photoBoxH/2, {align:'center'});
+  };
+
+  if (!fotki.length) {
+    brakZdjecia(innerX, innerW);
+  } else {
+    var gap = 4;
+    var boxW = (fotki.length === 2) ? (innerW - gap) / 2 : innerW;
+    for (var fi = 0; fi < fotki.length; fi++) {
+      var f = fotki[fi];
+      var bx = innerX + fi * (boxW + gap);
+      try {
+        var d = (f.dims && f.dims.w && f.dims.h) ? f.dims : {w:4, h:3};
+        var dw = boxW, dh = dw * d.h / d.w;
+        if (dh > photoBoxH) { dh = photoBoxH; dw = dh * d.w / d.h; }
+        doc.addImage(f.src, 'JPEG', bx + (boxW - dw)/2, cy + (photoBoxH - dh)/2, dw, dh);
+      } catch(e) {
+        brakZdjecia(bx, boxW);
+      }
+      doc.setFontSize(6); doc.setTextColor(160,174,192); doc.setFont('helvetica','normal');
+      doc.text(f.label, bx + boxW/2, cy + photoBoxH + 3, {align:'center'});
+    }
   }
   cy += photoBoxH + 6;
 
@@ -4755,8 +4777,6 @@ function drawFullCard(doc, r, qrDataUrl, dimsCam, dimsScreen) {
     r.fairHistory.forEach(function(h) {
       doc.setFontSize(8.5); doc.setTextColor(26,32,44); doc.setFont('helvetica','bold');
       doc.text(pl(h.text), m, y);
-      doc.setFont('helvetica','normal'); doc.setTextColor(160,174,192);
-      doc.text('  - '+h.date, m+doc.getTextWidth(pl(h.text)), y);
       y += 6;
     });
   }
@@ -4827,10 +4847,12 @@ function exportQRpdf(mode) {
   showToast(mode === 'print' ? 'Przygotowanie do druku...' : 'Generowanie PDF z QR...', '');
   getQRcanvas(function(qrCanvas) {
     const qrDataUrl = qrCanvas.toDataURL('image/png');
-    const photoSrc = coverPhotoOf(r);
-    loadImageDims(photoSrc).then(function(dims){
+    Promise.all([
+      loadImageDims(r.photoCamera || null),
+      loadImageDims(r.photoScreen || null)
+    ]).then(function(dwa){
       const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-      drawQRCard(doc, r, qrDataUrl, dims);
+      drawQRCard(doc, r, qrDataUrl, dwa[0], dwa[1]);
       finishPdf(doc, mode, 'QR_'+pl(r.company||'eksponat')+(r.number?'_'+r.number:''), 'PDF z QR wygenerowany! ✅');
     });
   });
@@ -5007,8 +5029,9 @@ async function generatePrintPdf(recs, printMode, fileLabel) {
         var rq = recs[b];
         if (b > 0) doc.addPage();
         var qrq = await makeQRDataUrl(qrTextFor(rq));
-        var dq = await loadImageDims(coverPhotoOf(rq));
-        drawQRCard(doc, rq, qrq, dq);
+        var dqCam = await loadImageDims(rq.photoCamera || null);
+        var dqScr = await loadImageDims(rq.photoScreen || null);
+        drawQRCard(doc, rq, qrq, dqCam, dqScr);
       }
     } else { // card
       for (var c = 0; c < recs.length; c++) {
@@ -5278,7 +5301,7 @@ function tilePreviewHTML(r) {
     ['Napięcie', r.voltage],
     ['Przewody', r.cableLength],
     ['Katalog', r.catalog],
-    ['Ostatnie targi', lastFair ? (lastFair.text + (lastFair.date ? ' — ' + lastFair.date : '')) : '']
+    ['Ostatnie targi', lastFair ? lastFair.text : '']
   ].filter(x => x[1]);
 
   const grid = rows.map(([k, v]) =>
