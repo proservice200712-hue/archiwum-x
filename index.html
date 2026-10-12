@@ -2098,7 +2098,7 @@ function useDemoMode() {
   fairNames = JSON.parse(localStorage.getItem('archivum_fairnames') || '[]');
   loadCatalogNames();
   showToast('Tryb demo — dane zapisywane lokalnie', 'success');
-  renderList();
+  odswiezListePoZmianieDanych();
   populateCompanySelect();
   populateFairSelect();
   loadActivity();
@@ -2319,10 +2319,10 @@ function removeFairName(name) {
 
 // ==================== RECORDS ====================
 function loadRecords() {
-  if (demoMode) { renderList(); return; }
+  if (demoMode) { odswiezListePoZmianieDanych(); return; }
   db.collection('records').orderBy('createdAt','desc').onSnapshot(snap => {
     records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    renderList();
+    odswiezListePoZmianieDanych();
   }, err => {
     showToast('Błąd bazy: ' + err.message, 'error');
     document.getElementById('records-container').innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>${err.message}</p></div>`;
@@ -2341,6 +2341,15 @@ function sortList(arr) {
     list.sort((a,b) => (parseInt(b.number)||0) - (parseInt(a.number)||0));
   }
   return list;
+}
+
+// Dane sie zmieniły (zapis, usunięcie, dane z bazy): odśwież listy filtrów
+// i przerysuj listę, ale Z ZACHOWANIEM aktywnego szukania i filtrów.
+// Samo renderList() pokazywało wszystko, więc po zapisie eksponatu lista gubiła
+// wpisaną frazę — w polu szukania zostawało np. "vpartners", a widok pokazywał całość.
+function odswiezListePoZmianieDanych() {
+  populateFilterDropdowns();
+  applyFilters();
 }
 
 function renderList(filteredRecords) {
@@ -4178,7 +4187,7 @@ async function saveRecord() {
     logActivity(isEdit ? 'edytował(a)' : 'utworzył(a)', { company: record.company, number: record.number || (existingRec && existingRec.number), id: savedId });
     showToast('Zapisano! ✅', 'success');
     fireConfetti();
-    renderList();
+    odswiezListePoZmianieDanych();
     showDetail(savedId);
     return;
   }
@@ -4481,7 +4490,7 @@ async function deleteCurrentRecord() {
     logActivity('usunął(ęła)', currentRecord);
     showToast('Usunięto!', 'success');
     showView('list');
-    renderList();
+    odswiezListePoZmianieDanych();
     return;
   }
   try {
