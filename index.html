@@ -25,6 +25,7 @@
     --yellow: #d69e2e;
     --green: #38a169;
     --blue: #3182ce;
+    --orange: #dd6b20;
     --dark: #1a202c;
     --gray: #4a5568;
     --lightgray: #e2e8f0;
@@ -463,6 +464,16 @@
 
   /* Stopka kafelka: status zawsze wyśrodkowany, avatar pozycjonowany absolutnie */
   .footer-avatar { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 2; }
+  /* Młotek w kółku — eksponat zmagazynowany, ale do naprawy */
+  .tile-fix {
+    position: absolute; right: 8px; bottom: 8px; z-index: 3;
+    width: 28px; height: 28px;
+    background: var(--orange); color: #fff;
+    font-size: 0.8rem; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
+    cursor: help;
+  }
 
   #print-select-bar {
     display: none;
@@ -481,6 +492,7 @@
   .record-card.card-niebieski { border-color: var(--blue); }
   .record-card.card-żółty { border-color: var(--yellow); }
   .record-card.card-zielony { border-color: var(--green); }
+  .record-card.card-naprawa { border-color: var(--orange); }
   .record-card.card-archiwum { border-color: #4a5568; }
 
   /* Nagłówek kafelka - nazwa w kolorze statusu, białe tło */
@@ -499,10 +511,12 @@
   .card-header.status-żółty { color: var(--yellow); }
   .card-header.status-zielony { color: var(--green); }
   .card-header.status-archiwum { color: #4a5568; }
+  .card-header.status-naprawa { color: var(--orange); }
   .card-header.status-brak { color: var(--gray); }
 
   /* Zdjęcie */
   .card-img {
+    position: relative;
     width: 100%;
     height: 160px;
     background: #f0f4f8;
@@ -532,7 +546,8 @@
   /* Stopka kafelka */
   .card-footer {
     position: relative;
-    padding: 8px 12px;
+    /* Zapas z lewej na awatar, zeby dluzsza plakietka (np. STORAGE REPAIR) pod niego nie wchodzila */
+    padding: 8px 12px 8px 42px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -550,12 +565,17 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-top: 8px;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .badge-czerwony { background: #fff5f5; color: var(--red); border: 1px solid #fed7d7; }
   .badge-żółty { background: #fffff0; color: var(--yellow); border: 1px solid #fefcbf; }
   .badge-zielony { background: #f0fff4; color: var(--green); border: 1px solid #c6f6d5; }
   .badge-archiwum { background: #e2e8f0; color: #4a5568; border: 1px solid #cbd5e0; }
   .badge-niebieski { background: #ebf8ff; color: var(--blue); border: 1px solid #bee3f8; }
+  .badge-naprawa { background: #fffaf0; color: var(--orange); border: 1px solid #feebc8; }
 
   /* Status na kafelku klikalny — otwiera podręczne menu zmiany statusu */
   .status-badge.badge-clickable { cursor: pointer; user-select: none; transition: transform .08s, box-shadow .15s; }
@@ -680,6 +700,7 @@
   .status-btn.active-green { border-color: var(--green); background: #f0fff4; color: var(--green); }
   .status-btn.active-archive { border-color: #4a5568; background: #e2e8f0; color: #4a5568; }
   .status-btn.active-blue { border-color: var(--blue); background: #ebf8ff; color: var(--blue); }
+  .status-btn.active-repair { border-color: var(--orange); background: #fffaf0; color: var(--orange); }
   .status-btn:hover { border-color: #a0aec0; }
 
   /* PHOTO UPLOAD */
@@ -1174,6 +1195,7 @@
   .record-card.card-żółty:hover     { box-shadow: 0 6px 26px rgba(214,158,46,0.50); }
   .record-card.card-zielony:hover   { box-shadow: 0 6px 26px rgba(56,161,105,0.50); }
   .record-card.card-niebieski:hover { box-shadow: 0 6px 26px rgba(49,130,206,0.50); }
+  .record-card.card-naprawa:hover   { box-shadow: 0 6px 26px rgba(221,107,32,0.50); }
   .record-card.card-archiwum:hover  { box-shadow: 0 6px 26px rgba(74,85,104,0.50); }
 
   /* ==================== WIDOCZNOŚĆ: DESKTOP / TELEFON ==================== */
@@ -1190,7 +1212,7 @@
   /* ==================== KĄT PROSTY (bez zaokrągleń) ==================== */
   *, *::before, *::after { border-radius: 0 !important; }
   .user-avatar, .user-avatar-sm, .select-check, .notif-dot, .flt-dot,
-  .detail-warn .dw-icon { border-radius: 50% !important; }
+  .detail-warn .dw-icon, .tile-fix { border-radius: 50% !important; }
   /* ==================== CHMURKA PODGLADU PO NAJECHANIU NA KAFELEK ==================== */
   #tile-tip {
     display: none;
@@ -1378,6 +1400,7 @@
         <option value="out">🔵 OUT</option>
         <option value="wróciło">🔴 To Find</option>
         <option value="sprawdzone">🟡 Storage</option>
+        <option value="naprawa">🔨 Storage Repair</option>
         <option value="gotowe">🟢 Ready</option>
         <option value="archiwum">🗄️ Archiwum</option>
       </select>
@@ -1487,6 +1510,7 @@
         <option value="">Wszystkie statusy</option>
         <option value="wróciło">🔴 To Find</option>
         <option value="sprawdzone">🟡 Storage</option>
+        <option value="naprawa">🔨 Storage Repair</option>
         <option value="gotowe">🟢 Ready</option>
         <option value="out">🔵 OUT</option>
         <option value="archiwum">🗄️ Archiwum</option>
@@ -1496,18 +1520,9 @@
       <button class="btn btn-gray btn-sm" onclick="showFairManager()">🎪 Targi</button>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%;margin-top:8px">
-      <select class="filter-select" onchange="applyFilters()" id="filter-type" style="flex:1;min-width:140px">
-        <option value="">Wszystkie typy</option>
-      </select>
-      <select class="filter-select" onchange="applyFilters()" id="filter-lightcolor" style="flex:1;min-width:140px">
-        <option value="">Wszystkie kolory światła</option>
-      </select>
-      <select class="filter-select" onchange="applyFilters()" id="filter-producer" style="flex:1;min-width:140px">
-        <option value="">Wszyscy producenci</option>
-      </select>
       <select class="filter-select" onchange="applyFilters()" id="filter-sort" style="flex:1;min-width:140px" title="Sortowanie">
-        <option value="">Sortuj: najnowsze</option>
-        <option value="edited">📅 Data edycji</option>
+        <option value="">🕐 Od najmłodszej edycji</option>
+        <option value="edited-asc">🕐 Od najstarszej edycji</option>
         <option value="number-asc">🔢 Numer rosnąco</option>
         <option value="number-desc">🔢 Numer malejąco</option>
       </select>
@@ -1603,6 +1618,7 @@
       <div class="status-group">
         <button type="button" class="status-btn" onclick="setStatus('wróciło',this)" id="status-btn-1">🔴 To Find</button>
         <button type="button" class="status-btn" onclick="setStatus('sprawdzone',this)" id="status-btn-2">🟡 Storage</button>
+        <button type="button" class="status-btn" onclick="setStatus('naprawa',this)" id="status-btn-6">🔨 Storage Repair</button>
         <button type="button" class="status-btn" onclick="setStatus('gotowe',this)" id="status-btn-3">🟢 Ready</button>
         <button type="button" class="status-btn" onclick="setStatus('out',this)" id="status-btn-5">🔵 OUT</button>
         <button type="button" class="status-btn" onclick="setStatus('archiwum',this)" id="status-btn-4">🗄️ Archiwum</button>
@@ -2333,12 +2349,16 @@ function sortList(arr) {
   const sortEl = document.getElementById('filter-sort');
   const mode = sortEl ? sortEl.value : '';
   const list = [...arr];
-  if (mode === 'edited') {
-    list.sort((a,b) => String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+  // Data modyfikacji, a gdy jej brak — data utworzenia
+  const kiedy = r => String(r.updatedAt || r.createdAt || '');
+  if (mode === 'edited-asc') {
+    list.sort((a,b) => kiedy(a).localeCompare(kiedy(b)));          // najstarsza edycja na górze
   } else if (mode === 'number-asc') {
     list.sort((a,b) => (parseInt(a.number)||0) - (parseInt(b.number)||0));
   } else if (mode === 'number-desc') {
     list.sort((a,b) => (parseInt(b.number)||0) - (parseInt(a.number)||0));
+  } else {
+    list.sort((a,b) => kiedy(b).localeCompare(kiedy(a)));          // domyślnie: najmłodsza edycja na górze
   }
   return list;
 }
@@ -3527,13 +3547,26 @@ function saveManageCatalog() {
 }
 
 // ==================== SZYBKA ZMIANA STATUSU Z KAFELKA ====================
+// Jedno miejsce, z którego bierze się wszystko o statusie: ikona, nazwa, kolory
+// i klasa podświetlenia przycisku. Wcześniej te same wartości były rozsiane
+// po kilku łańcuchach warunków, przez co łatwo było o nich zapomnieć.
 const STATUS_DEFS = [
-  { value: 'out',        icon: '🔵', label: 'OUT' },
-  { value: 'wróciło',    icon: '🔴', label: 'To Find' },
-  { value: 'sprawdzone', icon: '🟡', label: 'Storage' },
-  { value: 'gotowe',     icon: '🟢', label: 'Ready' },
-  { value: 'archiwum',   icon: '🗄️', label: 'Archiwum' }
+  { value: 'out',        icon: '🔵', label: 'OUT',            kolor: 'niebieski', btn: 'status-btn-5', aktywna: 'active-blue' },
+  { value: 'wróciło',    icon: '🔴', label: 'To Find',        kolor: 'czerwony',  btn: 'status-btn-1', aktywna: 'active-red' },
+  { value: 'sprawdzone', icon: '🟡', label: 'Storage',        kolor: 'żółty',     btn: 'status-btn-2', aktywna: 'active-yellow' },
+  { value: 'naprawa',    icon: '🔨', label: 'Storage Repair', kolor: 'naprawa',   btn: 'status-btn-6', aktywna: 'active-repair' },
+  { value: 'gotowe',     icon: '🟢', label: 'Ready',          kolor: 'zielony',   btn: 'status-btn-3', aktywna: 'active-green' },
+  { value: 'archiwum',   icon: '🗄️', label: 'Archiwum',       kolor: 'archiwum',  btn: 'status-btn-4', aktywna: 'active-archive' }
 ];
+
+function statusDef(v) {
+  return STATUS_DEFS.find(d => d.value === v) || null;
+}
+
+// Czy eksponat czeka na naprawę — stąd młotek na kafelku
+function doNaprawy(r) {
+  return r.status === 'naprawa';
+}
 
 function openStatusMenu(ev, id) {
   const rec = records.find(r => r.id === id);
@@ -3601,13 +3634,17 @@ window.addEventListener('resize', updateHeaderHeightVar);
 window.addEventListener('load', updateHeaderHeightVar);
 
 function recordCardHTML(r) {
-  const statusClass = r.status === 'wróciło' ? 'status-czerwony' : r.status === 'sprawdzone' ? 'status-żółty' : r.status === 'gotowe' ? 'status-zielony' : r.status === 'out' ? 'status-niebieski' : r.status === 'archiwum' ? 'status-archiwum' : 'status-brak';
-  const badgeClass = r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'out' ? 'badge-niebieski' : r.status === 'archiwum' ? 'badge-archiwum' : '';
-  const statusLabel = r.status === 'wróciło' ? 'To Find' : r.status === 'sprawdzone' ? 'Storage' : r.status === 'gotowe' ? 'Ready' : r.status === 'out' ? 'OUT' : r.status === 'archiwum' ? 'Archiwum' : r.status || '—';
+  const def = statusDef(r.status);
+  const statusClass = def ? 'status-' + def.kolor : 'status-brak';
+  const badgeClass = def ? 'badge-' + def.kolor : '';
+  const statusLabel = def ? def.label : (r.status || '—');
   const cardPhoto = coverPhotoOf(r);
+  // Młotek siedzi na rogu zdjęcia: w stopce nachodziłby na długą plakietkę "Storage Repair",
+  // a górne rogi są zajęte przez zaznaczanie do druku i ustalanie zawartości
+  const fixBadge = doNaprawy(r) ? '<span class="tile-fix" title="Do naprawy">\u{1F528}</span>' : '';
   const imgHTML = cardPhoto
-    ? `<div class="card-img"><img src="${cardPhoto}" alt="zdjęcie"></div>`
-    : `<div class="card-img">📦</div>`;
+    ? `<div class="card-img"><img src="${cardPhoto}" alt="zdjęcie">${fixBadge}</div>`
+    : `<div class="card-img">📦${fixBadge}</div>`;
   const dims = (r.thickness || r.width || r.height) ? `${r.width||'?'}×${r.height||'?'}×${r.thickness||'?'} ${r.dimUnit||'cm'}` : '';
   const nr = r.number ? ` #${r.number}` : '';
   // Dane pod zdjęciem: wymiary, typ, producent
@@ -3616,7 +3653,7 @@ function recordCardHTML(r) {
     r.type ? `<span>${r.type}</span>` : null,
     r.producer ? `<span style="color:#718096">${r.producer}</span>` : null,
   ].filter(Boolean).join('<br>');
-  const cardBorder = r.status === 'wróciło' ? 'card-czerwony' : r.status === 'sprawdzone' ? 'card-żółty' : r.status === 'gotowe' ? 'card-zielony' : r.status === 'out' ? 'card-niebieski' : r.status === 'archiwum' ? 'card-archiwum' : '';
+  const cardBorder = def ? 'card-' + def.kolor : '';
   // Status klikalny tylko dla zalogowanych, poza trybem druku i zarządzania katalogiem
   const quickStatus = !guestMode && !printSelectMode && !manageMode;
   // Skąd jest eksponat — widoczne przy szukaniu i przy zarządzaniu zawartością katalogu
@@ -3667,12 +3704,8 @@ function filterByStatus(s) {
 function applyFilters() {
   const q = (document.getElementById('searchInput').value || '').toLowerCase();
   const status = document.getElementById('filter-status').value;
-  const type = document.getElementById('filter-type').value;
-  const lightcolor = document.getElementById('filter-lightcolor').value;
-  const producer = document.getElementById('filter-producer').value;
-
   currentFilter = status;
-  filtersActive = !!(q || status || type || lightcolor || producer);
+  filtersActive = !!(q || status);
   updateFiltersDot();
   updateStatusBtn();
 
@@ -3681,12 +3714,6 @@ function applyFilters() {
     if (r.status === 'archiwum' && status !== 'archiwum') return false;
     if (q && !(r.company||'').toLowerCase().includes(q)) return false;
     if (status && r.status !== status) return false;
-    if (type && !(r.type||'').includes(type)) return false;
-    if (lightcolor) {
-      const lcArr = Array.isArray(r.lightColor) ? r.lightColor : (r.lightColor ? [r.lightColor] : []);
-      if (!lcArr.includes(lightcolor)) return false;
-    }
-    if (producer && r.producer !== producer) return false;
     return true;
   });
 
@@ -3696,9 +3723,6 @@ function applyFilters() {
 function clearFilters() {
   document.getElementById('searchInput').value = '';
   document.getElementById('filter-status').value = '';
-  document.getElementById('filter-type').value = '';
-  document.getElementById('filter-lightcolor').value = '';
-  document.getElementById('filter-producer').value = '';
   document.getElementById('filter-sort').value = '';
   document.getElementById('filter-group').value = '';
   localStorage.setItem('archivum_group', '');
@@ -3709,32 +3733,9 @@ function clearFilters() {
   renderList();
 }
 
-function populateFilterDropdowns() {
-  // Typ
-  const types = [...new Set(records.map(r => r.type).filter(Boolean))].sort();
-  const typeEl = document.getElementById('filter-type');
-  if (typeEl) {
-    const cur = typeEl.value;
-    typeEl.innerHTML = '<option value="">Wszystkie typy</option>' +
-      types.map(t => `<option value="${t}" ${cur===t?'selected':''}>${t}</option>`).join('');
-  }
-  // Kolor światła
-  const colors = [...new Set(records.flatMap(r => Array.isArray(r.lightColor) ? r.lightColor : (r.lightColor ? [r.lightColor] : [])))].sort();
-  const colorEl = document.getElementById('filter-lightcolor');
-  if (colorEl) {
-    const cur = colorEl.value;
-    colorEl.innerHTML = '<option value="">Wszystkie kolory światła</option>' +
-      colors.map(c => `<option value="${c}" ${cur===c?'selected':''}>${c}</option>`).join('');
-  }
-  // Producent
-  const producers = [...new Set(records.map(r => r.producer).filter(Boolean))].sort();
-  const prodEl = document.getElementById('filter-producer');
-  if (prodEl) {
-    const cur = prodEl.value;
-    prodEl.innerHTML = '<option value="">Wszyscy producenci</option>' +
-      producers.map(p => `<option value="${p}" ${cur===p?'selected':''}>${p}</option>`).join('');
-  }
-}
+// Listy typów, kolorów i producentów zostały usunięte z filtrów,
+// więc nie ma już czego uzupełniać danymi z bazy.
+function populateFilterDropdowns() {}
 
 // ==================== FORM ====================
 function showNewForm() {
@@ -3806,11 +3807,8 @@ function setStatus(val, btn) {
   selectedStatus = val;
   document.getElementById('f-status').value = val;
   document.querySelectorAll('.status-btn').forEach(b => b.className = 'status-btn');
-  if (val === 'wróciło') btn.classList.add('active-red');
-  else if (val === 'sprawdzone') btn.classList.add('active-yellow');
-  else if (val === 'gotowe') btn.classList.add('active-green');
-  else if (val === 'out') btn.classList.add('active-blue');
-  else if (val === 'archiwum') btn.classList.add('active-archive');
+  const d = statusDef(val);
+  if (d && btn) btn.classList.add(d.aktywna);
 }
 
 function togglePill(label, hiddenId) {
@@ -4249,8 +4247,9 @@ function showDetail(id) {
   document.getElementById('d-company').textContent = recordTitleOf(r);
 
   const badgeEl = document.getElementById('d-status-badge');
-  badgeEl.textContent = r.status === 'wróciło' ? '🔴 To Find' : r.status === 'sprawdzone' ? '🟡 Storage' : r.status === 'gotowe' ? '🟢 Ready' : r.status === 'out' ? '🔵 OUT' : r.status === 'archiwum' ? '🗄️ Archiwum' : r.status || '—';
-  badgeEl.className = 'status-badge ' + (r.status === 'wróciło' ? 'badge-czerwony' : r.status === 'sprawdzone' ? 'badge-żółty' : r.status === 'gotowe' ? 'badge-zielony' : r.status === 'out' ? 'badge-niebieski' : r.status === 'archiwum' ? 'badge-archiwum' : '');
+  const defD = statusDef(r.status);
+  badgeEl.textContent = defD ? (defD.icon + ' ' + defD.label) : (r.status || '—');
+  badgeEl.className = 'status-badge ' + (defD ? 'badge-' + defD.kolor : '');
 
   document.getElementById('d-dims').textContent = (r.thickness || r.width || r.height) ? `${r.width||'?'} × ${r.height||'?'} × ${r.thickness||'?'} ${r.dimUnit||'cm'}` : '—';
   document.getElementById('d-type').textContent = r.type || '—';
@@ -4352,15 +4351,9 @@ function editCurrentRecord() {
   if (r.status) {
     selectedStatus = r.status;
     document.getElementById('f-status').value = r.status;
-    const btns = { 'wróciło': 'status-btn-1', 'sprawdzone': 'status-btn-2', 'gotowe': 'status-btn-3', 'out': 'status-btn-5', 'archiwum': 'status-btn-4' };
-    if (btns[r.status]) {
-      const btn = document.getElementById(btns[r.status]);
-      if (r.status === 'wróciło') btn.classList.add('active-red');
-      else if (r.status === 'sprawdzone') btn.classList.add('active-yellow');
-      else if (r.status === 'gotowe') btn.classList.add('active-green');
-      else if (r.status === 'out') btn.classList.add('active-blue');
-      else if (r.status === 'archiwum') btn.classList.add('active-archive');
-    }
+    const d = statusDef(r.status);
+    const btn = d ? document.getElementById(d.btn) : null;
+    if (btn) btn.classList.add(d.aktywna);
   }
 
   const stdProducers = ['Dima','Marplex','Renata'];
@@ -5317,7 +5310,7 @@ function toggleFiltersPanel(forceOpen) {
 function updateFiltersDot() {
   const dot = document.getElementById('filters-dot');
   if (!dot) return;
-  const anySelect = ['filter-status','filter-type','filter-lightcolor','filter-producer','filter-sort','filter-group']
+  const anySelect = ['filter-status','filter-sort','filter-group']
     .some(id => { const el = document.getElementById(id); return el && el.value; });
   const q = (document.getElementById('searchInput') || {}).value;
   dot.style.display = (anySelect || q) ? 'inline-block' : 'none';
@@ -5409,10 +5402,14 @@ function tilePreviewHTML(r) {
     </div>${foot}`;
 }
 
+const KOLORY_STATUSU = {
+  czerwony: 'var(--red)', 'żółty': 'var(--yellow)', zielony: 'var(--green)',
+  niebieski: 'var(--blue)', naprawa: 'var(--orange)', archiwum: '#4a5568'
+};
+
 function statusColor(st) {
-  return st === 'wróciło' ? 'var(--red)' : st === 'sprawdzone' ? 'var(--yellow)'
-    : st === 'gotowe' ? 'var(--green)' : st === 'out' ? 'var(--blue)'
-    : st === 'archiwum' ? '#4a5568' : '#cbd5e0';
+  const d = statusDef(st);
+  return (d && KOLORY_STATUSU[d.kolor]) || '#cbd5e0';
 }
 
 // Podgląd katalogu: male kafelki tego, co w nim siedzi
