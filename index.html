@@ -262,6 +262,8 @@
     display: flex; align-items: flex-start;
     padding: 16px 20px; gap: 0; overflow-x: auto;
   }
+  /* otwarte z INDEX w nakładce: tylko formularz, bez nagłówka aplikacji */
+  body.ax-embed > header, body.ax-embed .header-author, body.ax-embed #view-list { display: none !important; }
   .tree-col { display: flex; flex-direction: column; gap: var(--tree-gap); flex-shrink: 0; }
   .tree-col + .tree-col { padding-left: var(--tree-indent); }
   .tree-item { position: relative; }
@@ -1606,7 +1608,7 @@
   <div class="form-container">
     <div class="form-header" style="justify-content:space-between">
       <div style="display:flex;align-items:center;gap:12px">
-        <button class="btn btn-gray btn-sm" onclick="showView('list')">← Wróć</button>
+        <button class="btn btn-gray btn-sm" onclick="formBack()">← Wróć</button>
         <h2 id="formTitle">Nowy eksponat</h2>
       </div>
       <button class="btn btn-primary btn-sm" onclick="saveRecord()">💾 Zapisz</button>
@@ -2046,6 +2048,52 @@
 let db = null;
 let storage = null;
 let demoMode = false;
+
+// ==================== OSADZENIE W INDEX ====================
+// INDEX (graficzny index stoisk) otwiera ten sam formularz „Nowy eksponat” w nakładce: ?embed=index
+// (&test = piaskownica, kolekcje zztest_). Dane elementu i login przychodzą z INDEX przez postMessage,
+// po zapisie INDEX dostaje id i numer eksponatu, a eksponat pamięta, z którego stoiska pochodzi (indexRef).
+const EMBED = new URLSearchParams(location.search).get('embed') === 'index' && window.parent !== window;
+const AX_TEST = EMBED && new URLSearchParams(location.search).has('test');
+const axCol = name => (AX_TEST && name !== 'users' ? 'zztest_' : '') + name;
+const embedOriginOk = o => o === 'https://proservice200712-hue.github.io' || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);
+let embedRef = null, embedPrefill = null, embedOrigin = '', companiesLoaded = false;
+function embedSend(msg) { if (EMBED && embedOrigin) window.parent.postMessage({ ax: true, ...msg }, embedOrigin); }
+function startEmbed() {
+  document.body.classList.add('ax-embed');
+  document.getElementById('loginOverlay').style.display = 'none';
+  window.addEventListener('message', ev => {
+    if (!embedOriginOk(ev.origin) || !ev.data || !ev.data.ax || ev.data.type !== 'prefill' || embedPrefill) return;
+    embedOrigin = ev.origin;
+    embedPrefill = ev.data.rec || {};
+    embedRef = ev.data.ref || null;
+    const user = USERS.find(u => u.login === String(ev.data.user || '').toUpperCase());
+    if (!user) {
+      // login z INDEX nie istnieje w Archiwum X — zwykłe logowanie, formularz otworzy się po nim
+      document.getElementById('loginOverlay').style.display = 'flex';
+      setTimeout(() => { document.getElementById('login-user').focus(); }, 200);
+      return;
+    }
+    currentUser = user;
+    document.getElementById('avatar-label').textContent = user.label;
+    loadAll();
+    embedOpen();
+  });
+  window.parent.postMessage({ ax: true, type: 'ready' }, '*');
+}
+// formularz jak przy kopii eksponatu: wypełniony danymi z INDEX, zapis jako NOWY eksponat
+function embedOpen(tries) {
+  tries = tries || 0;
+  if (!companiesLoaded && tries < 25) { setTimeout(() => embedOpen(tries + 1), 150); return; }
+  currentRecord = { ...embedPrefill };
+  editCurrentRecord();
+  editingId = null;
+  document.getElementById('formTitle').textContent = 'Nowy eksponat' + (embedRef && embedRef.mark ? ' — ' + embedRef.mark + ' z INDEX' : ' z INDEX');
+}
+function formBack() {
+  if (EMBED) { embedSend({ type: 'close' }); return; }
+  showView('list');
+}
 let records = [];
 let companies = [];
 let fairNames = [];
@@ -2132,14 +2180,16 @@ function loadAll() {
 // ==================== COMPANIES ====================
 function loadCompanies() {
   if (demoMode) { populateCompanySelect(); return; }
-  db.collection('companies').orderBy('name').onSnapshot(snap => {
+  db.collection(axCol('companies')).orderBy('name').onSnapshot(snap => {
     companies = snap.docs.map(d => d.data().name);
+    companiesLoaded = true;
     populateCompanySelect();
   });
 }
 
 function populateCompanySelect() {
   const sel = document.getElementById('f-company');
+  const prevCompany = sel.value;
   sel.innerHTML = '<option value="">— wybierz firmę —</option>';
   companies.forEach(c => {
     const opt = document.createElement('option');
@@ -2149,6 +2199,8 @@ function populateCompanySelect() {
   const optOther = document.createElement('option');
   optOther.value = '__other'; optOther.textContent = '+ Dodaj nową...';
   sel.appendChild(optOther);
+  // lista firm odświeżona w trakcie wypełniania formularza nie gubi wybranej firmy
+  if (prevCompany && [...sel.options].some(o => o.value === prevCompany)) sel.value = prevCompany;
   renderCompanyManager();
 }
 
@@ -2169,7 +2221,7 @@ function addCompany() {
     if (!companies.includes(name)) { companies.push(name); localStorage.setItem('archivum_companies', JSON.stringify(companies)); }
     populateCompanySelect();
   } else {
-    db.collection('companies').add({ name, created: firebase.firestore.FieldValue.serverTimestamp() });
+    db.collection(axCol('companies')).add({ name, created: firebase.firestore.FieldValue.serverTimestamp() });
   }
   document.getElementById('new-company-input').value = '';
   showToast('Firma dodana!', 'success');
@@ -2182,13 +2234,13 @@ function removeCompany(name) {
     localStorage.setItem('archivum_companies', JSON.stringify(companies));
     populateCompanySelect();
   } else {
-    db.collection('companies').where('name','==',name).get().then(snap => snap.forEach(d => d.ref.delete()));
+    db.collection(axCol('companies')).where('name','==',name).get().then(snap => snap.forEach(d => d.ref.delete()));
   }
 }
 
 function loadFairNames() {
   if (demoMode) return;
-  db.collection('fairNames').orderBy('name').onSnapshot(snap => {
+  db.collection(axCol('fairNames')).orderBy('name').onSnapshot(snap => {
     fairNames = snap.docs.map(d => d.data().name);
     populateFairSelect();
   });
@@ -2237,9 +2289,9 @@ function saveFairName(name) {
     }
     return;
   }
-  db.collection('fairNames').where('name','==',name).get().then(snap => {
+  db.collection(axCol('fairNames')).where('name','==',name).get().then(snap => {
     if (snap.empty) {
-      db.collection('fairNames').add({ name, created: firebase.firestore.FieldValue.serverTimestamp() });
+      db.collection(axCol('fairNames')).add({ name, created: firebase.firestore.FieldValue.serverTimestamp() });
     }
   });
 }
@@ -2323,7 +2375,7 @@ function removeFairName(name) {
     populateFairSelect();
     renderFairManager();
   } else {
-    db.collection('fairNames').where('name','==',name).get().then(snap => {
+    db.collection(axCol('fairNames')).where('name','==',name).get().then(snap => {
       snap.forEach(d => d.ref.delete());
     });
     fairNames = fairNames.filter(n => n !== name);
@@ -2336,7 +2388,7 @@ function removeFairName(name) {
 // ==================== RECORDS ====================
 function loadRecords() {
   if (demoMode) { odswiezListePoZmianieDanych(); return; }
-  db.collection('records').orderBy('createdAt','desc').onSnapshot(snap => {
+  db.collection(axCol('records')).orderBy('createdAt','desc').onSnapshot(snap => {
     records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     odswiezListePoZmianieDanych();
   }, err => {
@@ -2601,7 +2653,7 @@ function loadCatalogNames() {
     populateCatalogSelect();
     return;
   }
-  db.collection('catalogs').orderBy('name').onSnapshot(snap => {
+  db.collection(axCol('catalogs')).orderBy('name').onSnapshot(snap => {
     catalogNames = snap.docs.map(d => d.data().name);
     catalogMeta = {};
     catalogDocs = {};
@@ -2839,7 +2891,7 @@ function addCatalogFromManager() {
     renderCatalogManager();
     applyFilters();
   } else {
-    db.collection('catalogs').add({ name, gnum: nextGroupNumber(), created: firebase.firestore.FieldValue.serverTimestamp() })
+    db.collection(axCol('catalogs')).add({ name, gnum: nextGroupNumber(), created: firebase.firestore.FieldValue.serverTimestamp() })
       .catch(e => showToast('Błąd: ' + e.message, 'error'));
   }
   showToast('Katalog dodany! ✅', 'success');
@@ -2871,10 +2923,10 @@ function removeCatalogName(name) {
   };
 
   if (demoMode) { finish(); return; }
-  Promise.all(inCat.map(r => db.collection('records').doc(r.id).update({ catalog: '' })))
+  Promise.all(inCat.map(r => db.collection(axCol('records')).doc(r.id).update({ catalog: '' })))
     .then(() => Promise.all(sets.map(k =>
-      catalogDocs[k] ? db.collection('catalogs').doc(catalogDocs[k]).update({ parent: '' }) : null)))
-    .then(() => db.collection('catalogs').where('name','==',name).get())
+      catalogDocs[k] ? db.collection(axCol('catalogs')).doc(catalogDocs[k]).update({ parent: '' }) : null)))
+    .then(() => db.collection(axCol('catalogs')).where('name','==',name).get())
     .then(snap => Promise.all(snap.docs.map(d => d.ref.delete())))
     .then(finish)
     .catch(e => showToast('Błąd usuwania: ' + e.message, 'error'));
@@ -2979,7 +3031,7 @@ function saveCatalogImage(name, url) {
   if (demoMode) { finish(); return; }
   const docId = catalogDocs[name];
   if (!docId) { showToast('Nie znaleziono katalogu w bazie', 'error'); return; }
-  db.collection('catalogs').doc(docId).update({ image: url || '' })
+  db.collection(axCol('catalogs')).doc(docId).update({ image: url || '' })
     .then(finish)
     .catch(e => showToast('Błąd zapisu obrazka: ' + e.message, 'error'));
 }
@@ -3025,8 +3077,8 @@ function renameCatalog(oldName) {
   };
 
   if (demoMode) { finish(); return; }
-  Promise.all(inCat.map(r => db.collection('records').doc(r.id).update({ catalog: name })))
-    .then(() => db.collection('catalogs').where('name', '==', oldName).get())
+  Promise.all(inCat.map(r => db.collection(axCol('records')).doc(r.id).update({ catalog: name })))
+    .then(() => db.collection(axCol('catalogs')).where('name', '==', oldName).get())
     .then(snap => Promise.all(snap.docs.map(d => d.ref.update({ name, custom: true }))))
     .then(finish)
     .catch(e => showToast('Błąd zmiany nazwy: ' + e.message, 'error'));
@@ -3254,7 +3306,7 @@ function setCatalogParent(groupName) {
   if (demoMode) { finish(); return; }
   const id = catalogDocs[name];
   if (!id) { showToast('Nie znaleziono kompletu w bazie', 'error'); return; }
-  db.collection('catalogs').doc(id).update({ parent: parent })
+  db.collection(axCol('catalogs')).doc(id).update({ parent: parent })
     .then(finish)
     .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
 }
@@ -3278,7 +3330,7 @@ function newGroupForSet() {
     setCatalogParent(gname);
     return;
   }
-  db.collection('catalogs')
+  db.collection(axCol('catalogs'))
     .add({ name: gname, gnum: nextNumFor('group'), created: firebase.firestore.FieldValue.serverTimestamp() })
     .then(ref => {
       catalogNames.push(gname);
@@ -3323,7 +3375,7 @@ function toggleCatalogKind() {
   if (demoMode) { finish(); return; }
   const id = catalogDocs[name];
   if (!id) { showToast('Nie znaleziono w bazie', 'error'); return; }
-  db.collection('catalogs').doc(id).update(zmiany)
+  db.collection(axCol('catalogs')).doc(id).update(zmiany)
     .then(finish)
     .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
 }
@@ -3497,16 +3549,16 @@ function saveGroupNew() {
   if (demoMode) { finish(); return; }
   const catReady = existed
     ? Promise.resolve()
-    : db.collection('catalogs').add(Object.assign(
+    : db.collection(axCol('catalogs')).add(Object.assign(
         { name, created: firebase.firestore.FieldValue.serverTimestamp() },
         (newKind === 'set')
           ? { kind: 'set', knum: nextNumFor('set') }
           : { gnum: nextNumFor('group') }
       ));
   catReady
-    .then(() => Promise.all(targets.map(r => db.collection('records').doc(r.id).update({ catalog: name }))))
+    .then(() => Promise.all(targets.map(r => db.collection(axCol('records')).doc(r.id).update({ catalog: name }))))
     .then(() => Promise.all(setIds.map(k => catalogDocs[k]
-      ? db.collection('catalogs').doc(catalogDocs[k]).update({ parent: name })
+      ? db.collection(axCol('catalogs')).doc(catalogDocs[k]).update({ parent: name })
       : null)))
     .then(finish)
     .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
@@ -3541,7 +3593,7 @@ function saveManageCatalog() {
   };
 
   if (demoMode) { finish(); return; }
-  Promise.all(changes.map(c => db.collection('records').doc(c.r.id).update({ catalog: c.catalog })))
+  Promise.all(changes.map(c => db.collection(axCol('records')).doc(c.r.id).update({ catalog: c.catalog })))
     .then(finish)
     .catch(e => showToast('Błąd zapisu: ' + e.message, 'error'));
 }
@@ -3611,7 +3663,7 @@ function quickSetStatus(id, newStatus) {
     showToast('Status: ' + label + ' ✅', 'success');
   };
   if (demoMode) { apply(); return; }
-  db.collection('records').doc(id).update({
+  db.collection(axCol('records')).doc(id).update({
     status: newStatus,
     updatedAt: new Date().toISOString(),
     updatedBy: currentUser ? currentUser.login : 'NN'
@@ -4106,7 +4158,7 @@ async function saveRecord() {
       localStorage.setItem('archivum_companies', JSON.stringify(companies));
       populateCompanySelect();
     } else {
-      db.collection('companies').add({ name: company, created: firebase.firestore.FieldValue.serverTimestamp() });
+      db.collection(axCol('companies')).add({ name: company, created: firebase.firestore.FieldValue.serverTimestamp() });
     }
   }
 
@@ -4165,6 +4217,7 @@ async function saveRecord() {
 
   const isEdit = !!editingId;
   const existingRec = isEdit ? records.find(r => r.id === editingId) : null;
+  if (EMBED && embedRef && !isEdit) record.indexRef = embedRef;
 
   if (!editingId) {
     record.createdAt = new Date().toISOString();
@@ -4193,14 +4246,16 @@ async function saveRecord() {
   try {
     let savedId;
     if (editingId) {
-      await db.collection('records').doc(editingId).update(record);
+      await db.collection(axCol('records')).doc(editingId).update(record);
       savedId = editingId;
     } else {
-      const docRef = await db.collection('records').add(record);
+      const docRef = await db.collection(axCol('records')).add(record);
       savedId = docRef.id;
     }
     logActivity(isEdit ? 'edytował(a)' : 'utworzył(a)', { company: record.company, number: record.number || (existingRec && existingRec.number), id: savedId });
     showToast('Zapisano! ✅', 'success');
+    // w INDEX: oddaj id i numer eksponatu, INDEX zamyka nakładkę
+    if (EMBED) { embedSend({ type: 'saved', id: savedId, number: record.number || (existingRec && existingRec.number) }); return; }
     fireConfetti();
     // Otwórz szczegóły zapisanego eksponatu (poczekaj aż snapshot zaktualizuje listę)
     openDetailWhenReady(savedId);
@@ -4487,7 +4542,7 @@ async function deleteCurrentRecord() {
     return;
   }
   try {
-    await db.collection('records').doc(currentRecord.id).delete();
+    await db.collection(axCol('records')).doc(currentRecord.id).delete();
     logActivity('usunął(ęła)', currentRecord);
     showToast('Usunięto!', 'success');
     showView('list');
@@ -5147,7 +5202,7 @@ function logActivity(action, info) {
     updateBellBadge();
     return;
   }
-  db.collection('activity').add(entry).catch(e => console.log('Activity log error:', e));
+  db.collection(axCol('activity')).add(entry).catch(e => console.log('Activity log error:', e));
 }
 
 function loadActivity() {
@@ -5156,7 +5211,7 @@ function loadActivity() {
     updateBellBadge();
     return;
   }
-  db.collection('activity').orderBy('at','desc').limit(100).onSnapshot(snap => {
+  db.collection(axCol('activity')).orderBy('at','desc').limit(100).onSnapshot(snap => {
     activityLog = snap.docs.map(d => d.data());
     updateBellBadge();
   }, err => console.log('Activity load error:', err));
@@ -5660,7 +5715,7 @@ function serialApplyStatus(rec) {
     resume(1200);
   };
   if (demoMode) { apply(); return; }
-  db.collection('records').doc(rec.id).update({
+  db.collection(axCol('records')).doc(rec.id).update({
     status: newStatus,
     updatedAt: new Date().toISOString(),
     updatedBy: currentUser ? currentUser.login : 'NN'
@@ -5734,7 +5789,7 @@ function showScanner() {
         } else if (!demoMode && db) {
           // Tryb gościa / rekord spoza listy: pobierz pojedynczy dokument z bazy
           document.getElementById('scan-result').textContent = 'Pobieranie eksponatu...';
-          db.collection('records').doc(id).get().then(doc => {
+          db.collection(axCol('records')).doc(id).get().then(doc => {
             if (doc.exists) {
               const rec = { id: doc.id, ...doc.data() };
               if (!records.some(r => r.id === rec.id)) records.push(rec);
@@ -5825,7 +5880,7 @@ async function loadUsersFromFirebase() {
     return;
   }
   try {
-    const snap = await db.collection('users').get();
+    const snap = await db.collection(axCol('users')).get();
     if (!snap.empty) {
       const all = snap.docs.map(d => d.data());
       const extra = all.filter(u => u.login !== 'KG');
@@ -5845,7 +5900,7 @@ async function saveUserToFirebase(user) {
     return;
   }
   try {
-    await db.collection('users').doc(user.login).set(user);
+    await db.collection(axCol('users')).doc(user.login).set(user);
   } catch(e) { console.log('User save error:', e); }
 }
 
@@ -5855,7 +5910,7 @@ async function deleteUserFromFirebase(login) {
     return;
   }
   try {
-    await db.collection('users').doc(login).delete();
+    await db.collection(axCol('users')).doc(login).delete();
   } catch(e) { console.log('User delete error:', e); }
 }
 
@@ -5903,6 +5958,7 @@ function doLogin() {
     av.title = user.login + ' — menu (zmiany, użytkownicy, wyloguj)';
     showToast('Witaj, ' + user.login + '! ✅', 'success');
     loadAll();
+    if (EMBED && embedPrefill) embedOpen();
   } else {
     document.getElementById('login-error').style.display = 'block';
     document.getElementById('login-pass').value = '';
@@ -5956,7 +6012,7 @@ async function setUserNote(idx, value) {
     localStorage.setItem('archivum_users', JSON.stringify(USERS));
   } else {
     try {
-      await db.collection('users').doc(u.login).set({ login: u.login, note: u.note }, { merge: true });
+      await db.collection(axCol('users')).doc(u.login).set({ login: u.login, note: u.note }, { merge: true });
     } catch(e) { console.log('Note save error:', e); showToast('Nie udało się zapisać notatki', 'error'); return; }
   }
   showToast('Zapisano notatkę dla ' + u.login + ' ✅', 'success');
@@ -6030,6 +6086,9 @@ window.onload = async () => {
     // Załaduj userów z Firebase PRZED logowaniem
     await loadUsersFromFirebase();
 
+    // Otwarte z INDEX w nakładce — tylko formularz nowego eksponatu
+    if (EMBED) { startEmbed(); return; }
+
     // Wejście z linku QR (?id=...) — od razu pokaż kartę w trybie gościa, bez logowania
     const qid = new URLSearchParams(location.search).get('id');
     if (qid) {
@@ -6039,7 +6098,7 @@ window.onload = async () => {
       setGuestUI(true);
       document.getElementById('records-container').innerHTML =
         '<div class="loader"><div class="spinner"></div>Ładowanie eksponatu...</div>';
-      db.collection('records').doc(qid).get().then(doc => {
+      db.collection(axCol('records')).doc(qid).get().then(doc => {
         if (doc.exists) {
           const rec = { id: doc.id, ...doc.data() };
           if (!records.some(r => r.id === rec.id)) records.push(rec);
