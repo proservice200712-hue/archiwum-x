@@ -1924,6 +1924,7 @@
           <span>Montaż wymaga przygotowania <strong>szablonu</strong> (snap-fix / dystanse) oraz <strong>dystansów</strong>.</span>
         </div>
         <div id="d-notes" class="detail-notes" style="display:none"></div>
+        <div id="d-offset" style="display:none;margin:10px 0"></div>
       </div>
     </div>
 
@@ -4218,6 +4219,7 @@ async function saveRecord() {
   const isEdit = !!editingId;
   const existingRec = isEdit ? records.find(r => r.id === editingId) : null;
   if (EMBED && embedRef && !isEdit) record.indexRef = embedRef;
+  if (EMBED && embedPrefill && embedPrefill.offsetFiles && !isEdit) record.offsetFiles = embedPrefill.offsetFiles;
 
   if (!editingId) {
     record.createdAt = new Date().toISOString();
@@ -4277,6 +4279,13 @@ function openDetailWhenReady(id, tries) {
 }
 
 // ==================== DETAIL ====================
+// plik z Cloudinary (zapisany jako .dat) wraca pod swoją prawdziwą nazwą
+async function axOffsetGet(url, name) {
+  try {
+    const r = await fetch(url); if (!r.ok) throw new Error(String(r.status));
+    const a = document.createElement('a'); a.href = URL.createObjectURL(await r.blob()); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (e) { showToast('Nie udało się pobrać: ' + e.message, 'error'); }
+}
 function showDetail(id) {
   const r = records.find(rec => rec.id === id);
   if (!r) return;
@@ -4328,6 +4337,22 @@ function showDetail(id) {
     notesEl.style.display = 'block';
   } else {
     notesEl.style.display = 'none';
+  }
+
+  // pliki z Offset Wizarda (DXF do Fusion, szablon) — przychodzą z elementu w INDEX
+  const offEl = document.getElementById('d-offset'), off = r.offsetFiles;
+  if (offEl) {
+    if (off && !guestMode) {
+      const f = (u, n, lab) => u ? `<button class="btn btn-gray btn-sm" style="margin:4px 6px 0 0" onclick="axOffsetGet('${escAttr(u)}','${escAttr(n || 'plik')}')">⬇ ${lab}</button>` : '';
+      const dom = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://localhost:8150' : 'https://proservice200712-hue.github.io/index';
+      const q = new URLSearchParams({ dxf: off.dxf || '', n: off.dxfName || '' });
+      if (r.indexRef && r.indexRef.projectId) { q.set('p', r.indexRef.projectId); q.set('e', r.indexRef.elementId || ''); }
+      if (AX_TEST) q.set('test', '1');
+      offEl.innerHTML = `<div style="font-weight:700;margin-bottom:2px">⌖ Offset Wizard${off.ledM ? ` · LED ${String(off.ledM).replace('.', ',')} m` : ''}</div>`
+        + f(off.dxf, off.dxfName, 'DXF do Fusion') + f(off.szablon, off.szablonName, 'Szablon PDF') + f(off.szablonDxf, off.szablonDxfName, 'Szablon DXF (CNC)')
+        + `<a class="btn btn-gray btn-sm" style="margin:4px 6px 0 0;display:inline-block;text-decoration:none" target="_blank" rel="noopener" href="${dom}/offset.html?${q}">⌖ Otwórz w edytorze</a>`;
+      offEl.style.display = 'block';
+    } else offEl.style.display = 'none';
   }
 
   // QR
