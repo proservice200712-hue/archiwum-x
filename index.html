@@ -4647,7 +4647,18 @@ function loadImageDims(src) {
   return new Promise(function(resolve) {
     if (!src) { resolve({w:0,h:0}); return; }
     var im = new Image();
-    im.onload = function(){ resolve({w: im.naturalWidth||0, h: im.naturalHeight||0}); };
+    im.onload = function(){
+      var w = im.naturalWidth||0, h = im.naturalHeight||0, jpg = '';
+      // wydruk wstawia zdjecia jako JPEG, a ten nie ma przezroczystosci (grafika z INDEX to PNG z alfa: bez bialego tla wychodzi czarna) — splaszczamy na bialym
+      try {
+        if (w && h) {
+          var k = Math.min(1, 2000 / Math.max(w, h)), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+          var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+          jpg = c.toDataURL('image/jpeg', 0.92);
+        }
+      } catch (e) { jpg = ''; }
+      resolve({w: w, h: h, jpg: jpg});
+    };
     im.onerror = function(){ resolve({w:0,h:0}); };
     im.src = src;
   });
@@ -4781,7 +4792,7 @@ function drawQRCard(doc, r, qrDataUrl, imgDims, imgDims2) {
         var d = (f.dims && f.dims.w && f.dims.h) ? f.dims : {w:4, h:3};
         var dw = boxW, dh = dw * d.h / d.w;
         if (dh > photoBoxH) { dh = photoBoxH; dw = dh * d.w / d.h; }
-        doc.addImage(f.src, 'JPEG', bx + (boxW - dw)/2, cy + (photoBoxH - dh)/2, dw, dh);
+        doc.addImage((f.dims && f.dims.jpg) || f.src, 'JPEG', bx + (boxW - dw)/2, cy + (photoBoxH - dh)/2, dw, dh);
       } catch(e) {
         brakZdjecia(bx, boxW);
       }
@@ -4871,7 +4882,7 @@ function drawFullCard(doc, r, qrDataUrl, dimsCam, dimsScreen) {
         if (dh > boxH-4) { dh = boxH-4; dw = dh*iw/ih; }
         var ix = bx + (boxW-dw)/2;
         var iy = by + (boxH-dh)/2;
-        doc.addImage(p, 'JPEG', ix, iy, dw, dh);
+        doc.addImage(dimsArr[i].jpg || p, 'JPEG', ix, iy, dw, dh);
       } catch(e) {}
     } else {
       doc.setFillColor(245,245,245);
