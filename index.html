@@ -4657,9 +4657,18 @@ function loadImageDims(src) {
           jpg = c.toDataURL('image/jpeg', 0.92);
         }
       } catch (e) { jpg = ''; }
+      // bez zgody CORS: Cloudinary splaszczy sam (biale tlo, JPEG) — wystarczy dopisac transformacje do adresu
+      if (!jpg && /^https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//.test(src) && !/\/upload\/[^/]*b_white/.test(src)) jpg = src.replace('/upload/', '/upload/b_white,f_jpg/');
       resolve({w: w, h: h, jpg: jpg});
     };
-    im.onerror = function(){ resolve({w:0,h:0}); };
+    // zdjecia z INDEX leza na Cloudinary (adres http): z crossOrigin canvas nie jest 'skazony' i da sie z nich zrobic JPEG na bialym tle;
+    // gdyby serwer nie dal zgody (CORS), ladujemy bez niej — wtedy tylko wymiary
+    var cors = !/^data:/i.test(src);
+    im.onerror = function(){
+      if (cors) { cors = false; im.crossOrigin = null; im.src = src; return; }
+      resolve({w:0,h:0});
+    };
+    if (cors) im.crossOrigin = 'anonymous';
     im.src = src;
   });
 }
